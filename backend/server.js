@@ -8,12 +8,23 @@ require('dotenv').config();
 const sequelize = require('./src/config/database');
 
 const app = express();
+require('./src/config/redis');
+const errorHandler = require('./src/middlewares/errorHandler');
+const rateLimit = require('express-rate-limit');
 
 // Middlewares de seguridad y registro
 app.use(helmet()); 
 app.use(cors()); 
 app.use(morgan('dev')); 
 app.use(express.json()); 
+
+// Configuración del límite de peticiones (Portero)
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 100, // Máximo 100 peticiones por IP
+    message: 'Demasiadas peticiones, intenta de nuevo en 15 minutos'
+});
+app.use(limiter);
 
 // Ruta base de prueba
 app.get('/api/health', (req, res) => {
@@ -22,7 +33,7 @@ app.get('/api/health', (req, res) => {
     message: 'API de ProdVen funcionando correctamente' 
   });
 });
-
+app.use(errorHandler);
 // Función para iniciar el servidor y conectar a la BD
 const startServer = async () => {
   try {
