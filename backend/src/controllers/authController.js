@@ -111,7 +111,7 @@ const login = async (req, res, next) => {
 
         if (usuario.estaBloqueado()) {
             const minutosRestantes = Math.ceil((usuario.bloqueadoHasta - new Date()) / 60000);
-            return sendResponse(`res, 423, false, Cuenta bloqueada. Intenta nuevamente en ${minutosRestantes} minutos`);
+            return sendResponse(res, 423, false, `Cuenta bloqueada. Intenta nuevamente en ${minutosRestantes} minutos`);
         }
 
         const passwordValida = await compararPassword(password, usuario.claveHash);
@@ -124,12 +124,12 @@ const login = async (req, res, next) => {
                 usuario.intentosFallidos = 0;
                 await usuario.save();
                 logger.warn(`Cuenta bloqueada por intentos fallidos: ${usuario.idUsuario}`);
-                return sendResponse(`res, 423, false, Demasiados intentos fallidos. Cuenta bloqueada por ${MINUTOS_BLOQUEO} minutos`);
+                return sendResponse(res, 423, false, `Demasiados intentos fallidos. Cuenta bloqueada por ${MINUTOS_BLOQUEO} minutos`);
             }
 
             await usuario.save();
             const intentosRestantes = MAX_INTENTOS_FALLIDOS - usuario.intentosFallidos;
-            return sendResponse(`res, 401, false, Credenciales inválidas. Te quedan ${intentosRestantes} intentos`);
+            return sendResponse(res, 401, false, `Credenciales inválidas. Te quedan ${intentosRestantes} intentos`);
         }
 
         usuario.intentosFallidos = 0;
@@ -271,7 +271,7 @@ const logout = async (req, res, next) => {
 
         return sendResponse(res, 200, true, 'Sesión cerrada correctamente');
     } catch (error) {
-        logger.error(`Error en logout: ${error.message}`);
+         logger.error(`Error en logout: ${error.message}`);
         next(error);
     }
 };
@@ -285,9 +285,9 @@ const logoutTodos = async (req, res, next) => {
         const cantidad = await authService.revocarTodosLosTokens(req.userId);
         logger.info(`Logout total: ${req.userId} (${cantidad} sesiones cerradas)`);
 
-        return sendResponse(`res, 200, true, Se cerraron ${cantidad} sesiones, { sesionesCerradas: cantidad }`);
+        return sendResponse(res, 200, true, `Se cerraron ${cantidad} sesiones`, { sesionesCerradas: cantidad });
     } catch (error) {
-        logger.error(`Error en logout total: ${error.message}`);
+        logger.error(` Error en logout total: ${error.message}`);
         next(error);
     }
 };
@@ -321,7 +321,7 @@ const solicitarRecuperacion = async (req, res, next) => {
             });
 
             await emailService.enviarCorreoRecuperacion(usuario.correo, usuario.nombres, codigo);
-            logger.info(`Solicitud de recuperación: ${usuario.idUsuario}`);
+            logger.info(`Solicitud de recuperacion: ${usuario.idUsuario}`);
         }
 
         return sendResponse(res, 200, true, 'Si el correo existe en nuestra base de datos, recibirás un código de recuperación');
@@ -363,8 +363,17 @@ const restablecerPassword = async (req, res, next) => {
             return sendResponse(res, 400, false, 'Código expirado o intentos agotados');
         }
 
-        usuario.claveHash = passwordNueva;
-        await usuario.save();
+        // CORRECCIÓN: Hashear explícitamente y usar update directo
+        // para evitar conflictos con los hooks del modelo Sequelize
+        const passwordHasheada = await hashearPassword(passwordNueva);
+
+        await Usuario.update(
+            { claveHash: passwordHasheada },
+            {
+                where: { idUsuario: usuario.idUsuario },
+                hooks: false
+            }
+        );
 
         registro.usado = true;
         await registro.save();
