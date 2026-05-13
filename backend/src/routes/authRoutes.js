@@ -162,8 +162,8 @@ router.post(
 
 /**
  * GET /api/auth/me
- * Devuelve los datos del usuario autenticado actualmente
- * Útil para verificar el estado de sesión desde el frontend
+ * Devuelve los datos del usuario autenticado actualmente incluyendo permisos
+ * Útil para que el frontend sepa qué mostrar y qué ocultar
  */
 router.get(
     '/me',
@@ -181,9 +181,11 @@ router.get(
             rol: req.usuario.rol,
             verificado: req.usuario.verificado,
             twoFactorActivo: req.usuario.twoFactorActivo,
-            ultimoAcceso: req.usuario.ultimoAcceso
+            ultimoAcceso: req.usuario.ultimoAcceso,
+            permisos: req.permisos,
+            esSuperAdmin: req.esSuperAdmin,
+            esCliente: req.esCliente
         });
     }
 );
-
 module.exports = router;
