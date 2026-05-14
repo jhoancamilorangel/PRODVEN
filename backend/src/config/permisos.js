@@ -1,6 +1,8 @@
 /**
  * Matriz de Permisos RBAC para ProdVen
  * 
+ * Versión 2.0 - Actualizada en Fase 5
+ * 
  * Cada permiso sigue el formato: 'modulo.accion'
  * Cada rol tiene una lista de permisos específicos que puede ejecutar.
  * 
@@ -8,11 +10,6 @@
  * - SuperAdmin tiene acceso a TODO mediante el wildcard '*'
  * - Cliente está confinado a sus propios datos mediante permisos con sufijo '_propio'
  * - Todos los demás roles están confinados a su idEmpresa
- * 
- * Para agregar un nuevo permiso:
- * 1. Definir el permiso en MODULOS abajo
- * 2. Asignarlo a los roles correspondientes en ROLES_PERMISOS
- * 3. Usar verificarPermiso('modulo.accion') en la ruta
  */
 
 // =====================================================
@@ -25,16 +22,25 @@ const MODULOS = {
         CREAR_EMPRESA: 'sistema.crear_empresa',
         EDITAR_EMPRESA: 'sistema.editar_empresa',
         ELIMINAR_EMPRESA: 'sistema.eliminar_empresa',
+        ACTIVAR_EMPRESA: 'sistema.activar_empresa',
+        DESACTIVAR_EMPRESA: 'sistema.desactivar_empresa',
+        SUSPENDER_EMPRESA: 'sistema.suspender_empresa',
         GESTIONAR_SUSCRIPCIONES: 'sistema.gestionar_suscripciones',
+        VER_ESTADISTICAS_GLOBALES: 'sistema.ver_estadisticas_globales',
         VER_LOGS_GLOBALES: 'sistema.ver_logs_globales',
         GESTIONAR_PLANES: 'sistema.gestionar_planes'
     },
 
     // Configuración de la empresa propia
     EMPRESA: {
+        VER_MI_EMPRESA: 'empresa.ver_mi_empresa',
         VER_CONFIGURACION: 'empresa.ver_configuracion',
         EDITAR_CONFIGURACION: 'empresa.editar_configuracion',
-        GESTIONAR_METODOS_PAGO: 'empresa.gestionar_metodos_pago'
+        GESTIONAR_METODOS_PAGO: 'empresa.gestionar_metodos_pago',
+        TOGGLE_MARKETPLACE: 'empresa.toggle_marketplace',
+        TOGGLE_MANTENIMIENTO: 'empresa.toggle_mantenimiento',
+        VER_SUSCRIPCION: 'empresa.ver_suscripcion',
+        CANCELAR_SUSCRIPCION: 'empresa.cancelar_suscripcion'
     },
 
     // Gestión de usuarios dentro de la empresa
@@ -186,7 +192,6 @@ const ROLES_PERMISOS = {
     /**
      * SUPERADMIN
      * Acceso total al sistema. Usa wildcard '*'.
-     * Único rol que puede ver datos cruzados entre empresas.
      */
     superadmin: ['*'],
 
@@ -196,9 +201,14 @@ const ROLES_PERMISOS = {
      */
     administrador: [
         // Empresa propia
+        MODULOS.EMPRESA.VER_MI_EMPRESA,
         MODULOS.EMPRESA.VER_CONFIGURACION,
         MODULOS.EMPRESA.EDITAR_CONFIGURACION,
         MODULOS.EMPRESA.GESTIONAR_METODOS_PAGO,
+        MODULOS.EMPRESA.TOGGLE_MARKETPLACE,
+        MODULOS.EMPRESA.TOGGLE_MANTENIMIENTO,
+        MODULOS.EMPRESA.VER_SUSCRIPCION,
+        MODULOS.EMPRESA.CANCELAR_SUSCRIPCION,
 
         // Usuarios de su empresa
         MODULOS.USUARIOS.VER,
@@ -311,6 +321,10 @@ const ROLES_PERMISOS = {
         MODULOS.USUARIOS.VER_PERFIL_PROPIO,
         MODULOS.USUARIOS.EDITAR_PERFIL_PROPIO,
 
+        // Ver datos básicos de su empresa
+        MODULOS.EMPRESA.VER_MI_EMPRESA,
+        MODULOS.EMPRESA.VER_SUSCRIPCION,
+
         // Solo consulta productos
         MODULOS.PRODUCTOS.VER,
         MODULOS.CATEGORIAS.VER,
@@ -352,6 +366,9 @@ const ROLES_PERMISOS = {
         MODULOS.USUARIOS.VER_PERFIL_PROPIO,
         MODULOS.USUARIOS.EDITAR_PERFIL_PROPIO,
 
+        // Ver datos básicos de su empresa
+        MODULOS.EMPRESA.VER_MI_EMPRESA,
+
         // Solo ver productos (sin precios sensibles)
         MODULOS.PRODUCTOS.VER,
         MODULOS.CATEGORIAS.VER,
@@ -391,6 +408,10 @@ const ROLES_PERMISOS = {
     supervisor: [
         MODULOS.USUARIOS.VER_PERFIL_PROPIO,
         MODULOS.USUARIOS.EDITAR_PERFIL_PROPIO,
+
+        // Ver datos básicos de su empresa
+        MODULOS.EMPRESA.VER_MI_EMPRESA,
+        MODULOS.EMPRESA.VER_SUSCRIPCION,
 
         // Solo consulta de todo
         MODULOS.PRODUCTOS.VER,
@@ -495,9 +516,6 @@ const ROLES_PERMISOS = {
 // =====================================================
 // PERMISOS QUE OPERAN SOLO SOBRE DATOS PROPIOS
 // =====================================================
-// Estos permisos requieren validación adicional de propiedad del registro.
-// Por ejemplo, "pedidos.ver_propios" significa que el usuario solo puede ver
-// pedidos donde aparezca como creador o cliente, no los de otros.
 const PERMISOS_PROPIOS = [
     'usuarios.ver_perfil_propio',
     'usuarios.editar_perfil_propio',

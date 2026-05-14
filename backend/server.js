@@ -9,7 +9,14 @@ const sequelize = require('./src/config/database');
 require('./src/config/redis');
 
 const errorHandler = require('./src/middlewares/errorHandler');
+
+// =====================================================
+// IMPORTACIÓN DE RUTAS
+// =====================================================
 const authRoutes = require('./src/routes/authRoutes');
+const empresaRoutes = require('./src/routes/empresaRoutes');
+const suscripcionRoutes = require('./src/routes/suscripcionRoutes');
+const configuracionRoutes = require('./src/routes/configuracionRoutes');
 
 const app = express();
 
@@ -41,6 +48,9 @@ app.use(limiter);
 // RUTAS DE LA API
 // =====================================================
 app.use('/api/auth', authRoutes);
+app.use('/api/empresas', empresaRoutes);
+app.use('/api/suscripciones', suscripcionRoutes);
+app.use('/api/configuracion', configuracionRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
