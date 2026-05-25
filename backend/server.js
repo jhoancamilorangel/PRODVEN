@@ -17,6 +17,9 @@ const authRoutes = require('./src/routes/authRoutes');
 const empresaRoutes = require('./src/routes/empresaRoutes');
 const suscripcionRoutes = require('./src/routes/suscripcionRoutes');
 const configuracionRoutes = require('./src/routes/configuracionRoutes');
+const categoriaRoutes = require('./src/routes/categoriaRoutes');
+const proveedorRoutes = require('./src/routes/proveedorRoutes');
+const productoRoutes = require('./src/routes/productoRoutes');
 
 const app = express();
 
@@ -51,6 +54,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/empresas', empresaRoutes);
 app.use('/api/suscripciones', suscripcionRoutes);
 app.use('/api/configuracion', configuracionRoutes);
+app.use('/api/categorias', categoriaRoutes);
+app.use('/api/proveedores', proveedorRoutes);
+app.use('/api/productos', productoRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
