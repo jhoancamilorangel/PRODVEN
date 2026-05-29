@@ -1,6 +1,7 @@
 const Empresa = require('../../models/Empresa');
 const Suscripcion = require('../../models/Suscripcion');
 const ConfiguracionEmpresa = require('../../models/ConfiguracionEmpresa');
+const Bodega = require('../../models/Bodega');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 
@@ -12,7 +13,7 @@ const logger = require('../../config/logger');
  */
 
 /**
- * Crea una empresa completa con su suscripción y configuración por defecto
+ * Crea una empresa completa con su suscripción, configuración y bodega principal
  * 
  * Esta operación crítica usa transacción de Sequelize para garantizar
  * que si algo falla, no quedemos con datos a medias.
@@ -20,7 +21,7 @@ const logger = require('../../config/logger');
  * @param {object} datosEmpresa - Datos básicos de la empresa
  * @param {string} planInicial - Plan a asignar (default: 'free')
  * @param {string} idCreador - ID del SuperAdmin que crea la empresa
- * @returns {Promise<object>} Objeto con empresa, suscripcion y configuracion
+ * @returns {Promise<object>} Objeto con empresa, suscripcion, configuracion y bodegaPrincipal
  */
 const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreador = null) => {
     const transaction = await sequelize.transaction();
@@ -79,17 +80,29 @@ const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreado
             ...configDefault
         }, { transaction });
 
+        const bodegaPrincipal = await Bodega.create({
+            idEmpresa: empresa.idEmpresa,
+            nombre: 'Bodega Principal',
+            codigo: 'PRIN',
+            descripcion: 'Bodega principal creada automáticamente al registrar la empresa',
+            esPrincipal: true,
+            permiteVentas: true,
+            permiteProduccion: true,
+            activo: true,
+            eliminado: false
+        }, { transaction });
+
         await transaction.commit();
 
         logger.info(
-            `Empresa creada: ${empresa.idEmpresa} (${empresa.nombre}) 
-            con plan ${planInicial} por usuario ${idCreador || 'sistema'}
-        `);
+            `Empresa creada: ${empresa.idEmpresa} (${empresa.nombre}) con plan ${planInicial} y bodega principal ${bodegaPrincipal.idBodega} por usuario ${idCreador || 'sistema'}`
+        );
 
         return {
             empresa,
             suscripcion,
-            configuracion
+            configuracion,
+            bodegaPrincipal
         };
     } catch (error) {
         await transaction.rollback();

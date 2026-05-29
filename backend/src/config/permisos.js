@@ -1,7 +1,7 @@
 /**
  * Matriz de Permisos RBAC para ProdVen
  * 
- * Versión 2.0 - Actualizada en Fase 5
+ * Versión 2.1 - Actualizada en Fase 7
  * 
  * Cada permiso sigue el formato: 'modulo.accion'
  * Cada rol tiene una lista de permisos específicos que puede ejecutar.
@@ -79,12 +79,13 @@ const MODULOS = {
         ELIMINAR: 'proveedores.eliminar'
     },
 
-    // Inventario y stock
+    // Inventario, stock y bodegas
     INVENTARIO: {
         VER: 'inventario.ver',
         AJUSTAR: 'inventario.ajustar',
         VER_MOVIMIENTOS: 'inventario.ver_movimientos',
-        EXPORTAR: 'inventario.exportar'
+        EXPORTAR: 'inventario.exportar',
+        GESTIONAR_BODEGAS: 'inventario.gestionar_bodegas'
     },
 
     // Producción y Bill of Materials
@@ -237,11 +238,12 @@ const ROLES_PERMISOS = {
         MODULOS.PROVEEDORES.EDITAR,
         MODULOS.PROVEEDORES.ELIMINAR,
 
-        // Inventario
+        // Inventario completo (incluye gestión de bodegas)
         MODULOS.INVENTARIO.VER,
         MODULOS.INVENTARIO.AJUSTAR,
         MODULOS.INVENTARIO.VER_MOVIMIENTOS,
         MODULOS.INVENTARIO.EXPORTAR,
+        MODULOS.INVENTARIO.GESTIONAR_BODEGAS,
 
         // Producción
         MODULOS.PRODUCCION.VER_ORDENES,
@@ -329,7 +331,7 @@ const ROLES_PERMISOS = {
         MODULOS.PRODUCTOS.VER,
         MODULOS.CATEGORIAS.VER,
 
-        // Solo consulta inventario
+        // Solo consulta inventario (sin ver costos detallados)
         MODULOS.INVENTARIO.VER,
 
         // Gestión completa de clientes
@@ -342,6 +344,9 @@ const ROLES_PERMISOS = {
         MODULOS.PEDIDOS.VER_TODOS,
         MODULOS.PEDIDOS.CREAR,
         MODULOS.PEDIDOS.MODIFICAR_ESTADO,
+
+        // Crear reservas al armar pedidos
+        MODULOS.INVENTARIO.AJUSTAR,
 
         // Procesar pagos al vender
         MODULOS.PAGOS.PROCESAR,
@@ -419,6 +424,7 @@ const ROLES_PERMISOS = {
         MODULOS.PROVEEDORES.VER,
         MODULOS.INVENTARIO.VER,
         MODULOS.INVENTARIO.VER_MOVIMIENTOS,
+        MODULOS.INVENTARIO.EXPORTAR,
         MODULOS.PRODUCCION.VER_ORDENES,
         MODULOS.CLIENTES.VER,
         MODULOS.CLIENTES.VER_HISTORIAL,

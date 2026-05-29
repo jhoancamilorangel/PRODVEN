@@ -20,6 +20,9 @@ const configuracionRoutes = require('./src/routes/configuracionRoutes');
 const categoriaRoutes = require('./src/routes/categoriaRoutes');
 const proveedorRoutes = require('./src/routes/proveedorRoutes');
 const productoRoutes = require('./src/routes/productoRoutes');
+const inventarioRoutes = require('./src/routes/inventarioRoutes');
+const bodegaRoutes = require('./src/routes/bodegaRoutes');
+const reservaRoutes = require('./src/routes/reservaRoutes');
 
 const app = express();
 
@@ -57,6 +60,9 @@ app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/categorias', categoriaRoutes);
 app.use('/api/proveedores', proveedorRoutes);
 app.use('/api/productos', productoRoutes);
+app.use('/api/inventario', inventarioRoutes);
+app.use('/api/bodegas', bodegaRoutes);
+app.use('/api/reservas', reservaRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
