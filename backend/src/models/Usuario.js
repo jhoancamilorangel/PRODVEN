@@ -56,7 +56,8 @@ const Usuario = sequelize.define('Usuario', {
             'vendedor',
             'produccion',
             'supervisor',
-            'cliente'
+            'cliente',
+            'domiciliario'
         ),
         field: 'rol',
         allowNull: false,
@@ -101,6 +102,16 @@ const Usuario = sequelize.define('Usuario', {
         type: DataTypes.BOOLEAN,
         field: 'eliminado',
         defaultValue: false
+    },
+    debeChangarPassword: {
+        type: DataTypes.BOOLEAN,
+        field: 'debe_cambiar_password',
+        defaultValue: false
+    },
+    creadoPor: {
+        type: DataTypes.CHAR(36),
+        field: 'creado_por',
+        allowNull: true
     }
 }, {
     tableName: 'usuarios',

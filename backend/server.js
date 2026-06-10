@@ -26,6 +26,7 @@ const reservaRoutes = require('./src/routes/reservaRoutes');
 const bomRoutes = require('./src/routes/bomRoutes');
 const ordenProduccionRoutes = require('./src/routes/ordenProduccionRoutes');
 const consumoRoutes = require('./src/routes/consumoRoutes');
+const usuarioRoutes = require('./src/routes/usuarioRoutes');
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use('/api/reservas', reservaRoutes);
 app.use('/api/bom', bomRoutes);
 app.use('/api/ordenes-produccion', ordenProduccionRoutes);
 app.use('/api/consumos', consumoRoutes);
+app.use('/api/usuarios', usuarioRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
