@@ -27,6 +27,8 @@ const bomRoutes = require('./src/routes/bomRoutes');
 const ordenProduccionRoutes = require('./src/routes/ordenProduccionRoutes');
 const consumoRoutes = require('./src/routes/consumoRoutes');
 const usuarioRoutes = require('./src/routes/usuarioRoutes');
+const pagoRoutes = require('./src/routes/pagoRoutes');
+const webhookRoutes = require('./src/routes/webhookRoutes');
 
 const app = express();
 
@@ -71,6 +73,8 @@ app.use('/api/bom', bomRoutes);
 app.use('/api/ordenes-produccion', ordenProduccionRoutes);
 app.use('/api/consumos', consumoRoutes);
 app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/pagos', pagoRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
