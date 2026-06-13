@@ -31,6 +31,7 @@ const pagoRoutes = require('./src/routes/pagoRoutes');
 const webhookRoutes = require('./src/routes/webhookRoutes');
 const carritoRoutes = require('./src/routes/carritoRoutes');
 const pedidoRoutes = require('./src/routes/pedidoRoutes');
+const ubicacionRoutes = require('./src/routes/ubicacionRoutes');
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/carrito', carritoRoutes);
+app.use('/api', ubicacionRoutes);
 app.use('/api/pedidos', pedidoRoutes);
 
 // Ruta de salud
