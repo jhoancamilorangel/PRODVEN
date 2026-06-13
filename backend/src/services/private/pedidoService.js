@@ -167,6 +167,20 @@ const crearPedidoDesdeCarrito = async (idUsuario, idEmpresa, datos = {}) => {
                 notas: item.notas || null
             }, { transaction });
         }
+        // Actualizar las reservas para que apunten al pedido (Opción B)
+        // Se crearon con referencia al carrito; ahora las vinculamos al pedido real
+        const ReservaStock = require('../../models/ReservaStock');
+        await ReservaStock.update(
+            { referenciaId: pedido.idPedido },
+            {
+                where: {
+                    referenciaTipo: 'pedido',
+                    referenciaId: carrito.idCarrito,
+                    estado: 'activa'
+                },
+                transaction
+            }
+        );
 
         // Crear el primer registro de seguimiento
         await SeguimientoPedido.create({

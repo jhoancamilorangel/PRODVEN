@@ -2,17 +2,20 @@ const express = require('express');
 const router = express.Router();
 
 const pedidoController = require('../controllers/pedidoController');
+const gestionPedidoController = require('../controllers/gestionPedidoController');
 const { verificarAutenticacion } = require('../middlewares/authMiddleware');
 const {
     validarCrearPedido,
     validarIdPedido
 } = require('../middlewares/validators/pedidoValidator');
+const {
+    validarCambioEstado,
+    validarCancelar
+} = require('../middlewares/validators/gestionPedidoValidator');
 
 // =====================================================
 // RUTAS DE PEDIDOS
 // =====================================================
-// Crear pedido y ver "mis compras" son acciones del cliente autenticado.
-// Listar todos los pedidos de la empresa es para vendedores/admins.
 
 // Pedidos del cliente autenticado (sus compras)
 router.get(
@@ -34,6 +37,22 @@ router.get(
     '/',
     verificarAutenticacion,
     pedidoController.listarPedidos
+);
+
+// Cambiar estado de un pedido (gestión por el negocio)
+router.patch(
+    '/:idPedido/estado',
+    verificarAutenticacion,
+    validarCambioEstado,
+    gestionPedidoController.cambiarEstado
+);
+
+// Cancelar un pedido (cliente o negocio)
+router.post(
+    '/:idPedido/cancelar',
+    verificarAutenticacion,
+    validarCancelar,
+    gestionPedidoController.cancelarPedido
 );
 
 // Obtener un pedido específico
