@@ -29,6 +29,7 @@ const consumoRoutes = require('./src/routes/consumoRoutes');
 const usuarioRoutes = require('./src/routes/usuarioRoutes');
 const pagoRoutes = require('./src/routes/pagoRoutes');
 const webhookRoutes = require('./src/routes/webhookRoutes');
+const carritoRoutes = require('./src/routes/carritoRoutes');
 
 const app = express();
 
@@ -75,8 +76,12 @@ app.use('/api/consumos', consumoRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/pagos', pagoRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use(`/api/carrito`, carritoRoutes);
 
 // Ruta de salud
+app.get('/api/carrito-test', (req, res) => {
+    res.status(200).json({ mensaje: 'Ruta de prueba del carrito funciona' });
+});
 app.get('/api/health', (req, res) => {
     res.status(200).json({
         status: 'success',
