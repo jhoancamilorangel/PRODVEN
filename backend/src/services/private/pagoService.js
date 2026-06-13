@@ -4,7 +4,7 @@ const PayuAdapter = require('../../payments/PayuAdapter');
 const WebhookHandler = require('../../payments/WebhookHandler');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
-
+const gestionPedidoService = require('./gestionPedidoService');
 /**
  * Servicio de Pagos
  *
@@ -180,7 +180,49 @@ const aplicarPagoExitoso = async (pago) => {
         }
 
         if (pago.tipoPago === 'pedido' && pago.idPedido) {
-            logger.info(`Pago de pedido ${pago.idPedido} completado. Pedido listo para procesar.`);
+            logger.info(`Pago de pedido ${pago.idPedido} completado. Confirmando pedido automáticamente.`);
+
+            const Pedido = require('../../models/Pedido');
+            const pedido = await Pedido.findByPk(pago.idPedido);
+
+            if (!pedido) {
+                logger.warn(`Pago exitoso pero el pedido ${pago.idPedido} no existe.`);
+                return;
+            }
+
+            // Validar que el monto pagado cubra el total del pedido
+            const totalPedido = parseFloat(pedido.total);
+            const montoPagado = parseFloat(pago.monto);
+
+            if (montoPagado < totalPedido) {
+                logger.warn(
+                    `Pago de pedido ${pago.idPedido} insuficiente: pagado ${montoPagado}, total ${totalPedido}. No se confirma automáticamente.`
+                );
+                return;
+            }
+
+            // Solo confirmar si el pedido está pendiente (no pisar otros estados)
+            if (pedido.estado !== 'pendiente') {
+                logger.info(
+                    `Pedido ${pago.idPedido} ya está en estado "${pedido.estado}", no se confirma de nuevo.`
+                );
+                return;
+            }
+
+            // Confirmar el pedido automáticamente por el pago
+            const resultado = await gestionPedidoService.cambiarEstado(
+                pedido.idPedido,
+                pedido.idEmpresa,
+                'confirmado',
+                pago.creadoPor,
+                { descripcion: `Pago recibido (ref: ${pago.referencia}). Pedido confirmado automáticamente.` }
+            );
+
+            if (resultado.exito) {
+                logger.info(`Pedido ${pago.idPedido} confirmado automáticamente por pago exitoso.`);
+            } else {
+                logger.warn(`No se pudo confirmar el pedido ${pago.idPedido}: ${resultado.mensaje}`);
+            }
         }
     } catch (error) {
         logger.error(`Error al aplicar pago exitoso: ${error.message}`);
