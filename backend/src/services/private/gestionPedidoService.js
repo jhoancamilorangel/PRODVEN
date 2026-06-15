@@ -2,6 +2,7 @@ const Pedido = require('../../models/Pedido');
 const SeguimientoPedido = require('../../models/SeguimientoPedido');
 const ReservaStock = require('../../models/ReservaStock');
 const reservaService = require('./reservaService');
+const domiciliarioService = require('./domiciliarioService');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 
@@ -14,6 +15,9 @@ const logger = require('../../config/logger');
  * Manejo de stock:
  *  - Al ENTREGAR: confirma las reservas (stock reservado -> salida real)
  *  - Al CANCELAR: libera las reservas (stock reservado -> disponible)
+ *
+ * Manejo de domiciliario:
+ *  - Al ENTREGAR o CANCELAR: libera al domiciliario (vuelve a disponible)
  */
 
 // =====================================================
@@ -165,6 +169,15 @@ const entregarPedido = async (pedido, idUsuario, opciones = {}) => {
 
         await transaction.commit();
 
+        // Liberar al domiciliario (vuelve a estar disponible para otro pedido)
+        if (pedido.idDomiciliario) {
+            try {
+                await domiciliarioService.liberarDomiciliario(pedido.idPedido);
+            } catch (error) {
+                logger.error(`Error al liberar domiciliario tras entrega: ${error.message}`);
+            }
+        }
+
         logger.info(`Pedido ${pedido.numeroPedido} entregado. ${reservas.length} reservas confirmadas como salida.`);
 
         return {
@@ -210,6 +223,15 @@ const cancelarPedido = async (pedido, idUsuario, opciones = {}) => {
         );
 
         await transaction.commit();
+
+        // Liberar al domiciliario si tenía uno asignado
+        if (pedido.idDomiciliario) {
+            try {
+                await domiciliarioService.liberarDomiciliario(pedido.idPedido);
+            } catch (error) {
+                logger.error(`Error al liberar domiciliario tras cancelación: ${error.message}`);
+            }
+        }
 
         logger.info(`Pedido ${pedido.numeroPedido} cancelado. ${liberadas} reservas liberadas.`);
 

@@ -138,6 +138,12 @@ const Pedido = sequelize.define('Pedido', {
         allowNull: false,
         comment: 'Usuario que creó el pedido'
     },
+    idDomiciliario: {
+        type: DataTypes.CHAR(36),
+        field: 'id_domiciliario',
+        allowNull: true,
+        comment: 'Domiciliario asignado para la entrega'
+    },
     activo: {
         type: DataTypes.BOOLEAN,
         field: 'activo',

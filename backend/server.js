@@ -32,6 +32,7 @@ const webhookRoutes = require('./src/routes/webhookRoutes');
 const carritoRoutes = require('./src/routes/carritoRoutes');
 const pedidoRoutes = require('./src/routes/pedidoRoutes');
 const ubicacionRoutes = require('./src/routes/ubicacionRoutes');
+const zonaRoutes = require('./src/routes/zonaRoutes');
 
 const app = express();
 
@@ -81,6 +82,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/carrito', carritoRoutes);
 app.use('/api', ubicacionRoutes);
 app.use('/api/pedidos', pedidoRoutes);
+app.use('/api/zonas', zonaRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
