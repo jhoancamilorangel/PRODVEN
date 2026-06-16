@@ -1,7 +1,7 @@
 const Resena = require('../../models/Resena');
 const Pedido = require('../../models/Pedido');
 const DetallePedido = require('../../models/DetallePedido');
-const carritoService = require('./carritoService');
+const Cliente = require('../../models/Cliente');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 const { Op } = require('sequelize');
@@ -9,29 +9,40 @@ const { Op } = require('sequelize');
 /**
  * Servicio de Reseñas
  *
- * Maneja las reseñas de productos y de empresas:
- *  - Crear reseña (con validación de compra para productos)
- *  - Listar reseñas de un producto
- *  - Editar y eliminar la propia reseña
- *  - Moderación (la empresa puede ocultar reseñas)
- *
- * Usa carritoService.resolverCliente para convertir el usuario autenticado
- * en su perfil de cliente global (coherente con el resto del sistema).
+ * Resuelve el usuario autenticado a su perfil de cliente global con una
+ * función propia (resolverCliente), para no depender de otros servicios
+ * y evitar dependencias circulares.
  *
  * IMPORTANTE: El promedio de calificación lo calculan AUTOMÁTICAMENTE los
  * triggers de la base de datos. Este servicio NO calcula promedios.
  */
 
+/**
+ * Resuelve el cliente global vinculado a un usuario.
+ * Si no existe, lo crea (igual que en el carrito, para coherencia).
+ */
+const resolverCliente = async (idUsuario) => {
+    let cliente = await Cliente.findOne({
+        where: { idUsuario, eliminado: false }
+    });
+
+    if (!cliente) {
+        cliente = await Cliente.create({
+            idUsuario,
+            idEmpresa: null,
+            activo: true,
+            eliminado: false
+        });
+        logger.info(`Perfil de cliente creado automáticamente para usuario ${idUsuario}`);
+    }
+
+    return cliente;
+};
+
 // =====================================================
 // VALIDACIÓN DE COMPRA
 // =====================================================
 
-/**
- * Verifica que el cliente haya comprado y recibido el producto
- * Busca un pedido entregado del cliente que contenga el producto
- *
- * @returns {Promise<object|null>} El pedido que respalda la compra, o null
- */
 const buscarPedidoQueRespalda = async (idCliente, idProducto, idEmpresa) => {
     const pedidosEntregados = await Pedido.findAll({
         where: {
@@ -67,25 +78,16 @@ const buscarPedidoQueRespalda = async (idCliente, idProducto, idEmpresa) => {
 // CREAR RESEÑA
 // =====================================================
 
-/**
- * Crea una reseña
- *
- * @param {string} idEmpresa - Empresa
- * @param {string} idUsuario - Usuario autenticado (se resuelve a cliente)
- * @param {object} datos - { idProducto, calificacion, titulo, comentario }
- * @returns {Promise<object>} { exito, resena, mensaje }
- */
 const crearResena = async (idEmpresa, idUsuario, datos) => {
     const { idProducto, calificacion, titulo, comentario } = datos;
 
     // Resolver el cliente global a partir del usuario autenticado
-    const cliente = await carritoService.resolverCliente(idUsuario);
+    const cliente = await resolverCliente(idUsuario);
     const idCliente = cliente.idCliente;
 
     let idPedidoRespaldo = null;
 
     if (idProducto) {
-        // Verificar que no haya reseñado ya este producto
         const resenaExistente = await Resena.findOne({
             where: {
                 idCliente,
@@ -102,7 +104,6 @@ const crearResena = async (idEmpresa, idUsuario, datos) => {
             };
         }
 
-        // Validar compra
         const respaldo = await buscarPedidoQueRespalda(idCliente, idProducto, idEmpresa);
 
         if (!respaldo) {
@@ -139,9 +140,6 @@ const crearResena = async (idEmpresa, idUsuario, datos) => {
 // LISTAR RESEÑAS
 // =====================================================
 
-/**
- * Lista las reseñas visibles de un producto
- */
 const listarResenasProducto = async (idProducto, filtros = {}) => {
     const pagina = parseInt(filtros.pagina, 10) || 1;
     const limit = parseInt(filtros.limit, 10) || 20;
@@ -169,11 +167,8 @@ const listarResenasProducto = async (idProducto, filtros = {}) => {
     };
 };
 
-/**
- * Lista las reseñas que ha hecho el cliente (resuelto desde el usuario)
- */
 const listarResenasCliente = async (idUsuario) => {
-    const cliente = await carritoService.resolverCliente(idUsuario);
+    const cliente = await resolverCliente(idUsuario);
 
     const resenas = await Resena.findAll({
         where: { idCliente: cliente.idCliente, eliminado: false },
@@ -187,11 +182,8 @@ const listarResenasCliente = async (idUsuario) => {
 // EDITAR Y ELIMINAR
 // =====================================================
 
-/**
- * Edita la propia reseña del cliente
- */
 const editarResena = async (idResena, idUsuario, datos) => {
-    const cliente = await carritoService.resolverCliente(idUsuario);
+    const cliente = await resolverCliente(idUsuario);
 
     const resena = await Resena.findOne({
         where: { idResena, idCliente: cliente.idCliente, eliminado: false }
@@ -210,11 +202,8 @@ const editarResena = async (idResena, idUsuario, datos) => {
     return { exito: true, resena: resena.datosCompletos(), mensaje: 'Reseña actualizada' };
 };
 
-/**
- * Elimina (soft delete) la propia reseña del cliente
- */
 const eliminarResena = async (idResena, idUsuario) => {
-    const cliente = await carritoService.resolverCliente(idUsuario);
+    const cliente = await resolverCliente(idUsuario);
 
     const resena = await Resena.findOne({
         where: { idResena, idCliente: cliente.idCliente, eliminado: false }
@@ -234,9 +223,6 @@ const eliminarResena = async (idResena, idUsuario) => {
 // MODERACIÓN (por la empresa)
 // =====================================================
 
-/**
- * La empresa puede cambiar la visibilidad de una reseña (moderación)
- */
 const cambiarVisibilidad = async (idResena, idEmpresa, visible) => {
     const resena = await Resena.findOne({
         where: { idResena, idEmpresa, eliminado: false }
