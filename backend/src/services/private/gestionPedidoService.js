@@ -3,6 +3,7 @@ const SeguimientoPedido = require('../../models/SeguimientoPedido');
 const ReservaStock = require('../../models/ReservaStock');
 const reservaService = require('./reservaService');
 const domiciliarioService = require('./domiciliarioService');
+const auditoriaService = require('./auditoriaService');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 
@@ -18,6 +19,10 @@ const logger = require('../../config/logger');
  *
  * Manejo de domiciliario:
  *  - Al ENTREGAR o CANCELAR: libera al domiciliario (vuelve a disponible)
+ *
+ * Auditoría:
+ *  - Cada cambio de estado se registra en auditoría (entidad pedidos),
+ *    con el estado anterior y el nuevo, sin afectar la operación si falla.
  */
 
 // =====================================================
@@ -79,6 +84,9 @@ const cambiarEstado = async (idPedido, idEmpresa, nuevoEstado, idUsuario, opcion
         return await cancelarPedido(pedido, idUsuario, opciones);
     }
 
+    // Guardar el estado anterior para la auditoría
+    const estadoAnterior = pedido.estado;
+
     // Cambio de estado normal (sin tocar stock)
     const transaction = await sequelize.transaction();
     try {
@@ -102,6 +110,22 @@ const cambiarEstado = async (idPedido, idEmpresa, nuevoEstado, idUsuario, opcion
         await transaction.commit();
 
         logger.info(`Pedido ${pedido.numeroPedido} cambió a estado ${nuevoEstado}`);
+
+        // Auditoría del cambio de estado (no afecta la operación si falla)
+        try {
+            await auditoriaService.registrarAuditoria({
+                idEmpresa,
+                entidad: 'pedidos',
+                idEntidad: pedido.idPedido,
+                accion: 'UPDATE',
+                valorAnterior: { estado: estadoAnterior },
+                valorNuevo: { estado: nuevoEstado },
+                realizadoPor: idUsuario,
+                ip: opciones.ip || null
+            });
+        } catch (error) {
+            logger.error(`Error al auditar cambio de estado: ${error.message}`);
+        }
 
         return {
             exito: true,
@@ -151,6 +175,9 @@ const entregarPedido = async (pedido, idUsuario, opciones = {}) => {
         }
     }
 
+    // Guardar el estado anterior para la auditoría
+    const estadoAnterior = pedido.estado;
+
     // Actualizar el pedido a entregado
     const transaction = await sequelize.transaction();
     try {
@@ -180,6 +207,22 @@ const entregarPedido = async (pedido, idUsuario, opciones = {}) => {
 
         logger.info(`Pedido ${pedido.numeroPedido} entregado. ${reservas.length} reservas confirmadas como salida.`);
 
+        // Auditoría de la entrega (no afecta la operación si falla)
+        try {
+            await auditoriaService.registrarAuditoria({
+                idEmpresa: pedido.idEmpresa,
+                entidad: 'pedidos',
+                idEntidad: pedido.idPedido,
+                accion: 'UPDATE',
+                valorAnterior: { estado: estadoAnterior },
+                valorNuevo: { estado: 'entregado' },
+                realizadoPor: idUsuario,
+                ip: opciones.ip || null
+            });
+        } catch (error) {
+            logger.error(`Error al auditar entrega: ${error.message}`);
+        }
+
         return {
             exito: true,
             pedido: pedido.datosCompletos(),
@@ -206,6 +249,9 @@ const cancelarPedido = async (pedido, idUsuario, opciones = {}) => {
         pedido.idPedido,
         opciones.motivo || `Cancelación del pedido ${pedido.numeroPedido}`
     );
+
+    // Guardar el estado anterior para la auditoría
+    const estadoAnterior = pedido.estado;
 
     // Actualizar el pedido a cancelado
     const transaction = await sequelize.transaction();
@@ -234,6 +280,22 @@ const cancelarPedido = async (pedido, idUsuario, opciones = {}) => {
         }
 
         logger.info(`Pedido ${pedido.numeroPedido} cancelado. ${liberadas} reservas liberadas.`);
+
+        // Auditoría de la cancelación (no afecta la operación si falla)
+        try {
+            await auditoriaService.registrarAuditoria({
+                idEmpresa: pedido.idEmpresa,
+                entidad: 'pedidos',
+                idEntidad: pedido.idPedido,
+                accion: 'UPDATE',
+                valorAnterior: { estado: estadoAnterior },
+                valorNuevo: { estado: 'cancelado' },
+                realizadoPor: idUsuario,
+                ip: opciones.ip || null
+            });
+        } catch (error) {
+            logger.error(`Error al auditar cancelación: ${error.message}`);
+        }
 
         return {
             exito: true,

@@ -1,263 +1,377 @@
-const Resena = require('../../models/Resena');
-const Pedido = require('../../models/Pedido');
-const DetallePedido = require('../../models/DetallePedido');
-const carritoService = require('./carritoService');
+const Carrito = require('../../models/Carrito');
+const ItemCarrito = require('../../models/ItemCarrito');
+const Cliente = require('../../models/Cliente');
+const Producto = require('../../models/Producto');
+const StockProducto = require('../../models/StockProducto');
+const inventarioService = require('./inventarioService');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
-const { Op } = require('sequelize');
 
 /**
- * Servicio de Reseñas
+ * Servicio de Carrito de Compras
  *
- * Maneja las reseñas de productos y de empresas:
- *  - Crear reseña (con validación de compra para productos)
- *  - Listar reseñas de un producto
- *  - Editar y eliminar la propia reseña
- *  - Moderación (la empresa puede ocultar reseñas)
- *
- * Usa carritoService.resolverCliente para convertir el usuario autenticado
- * en su perfil de cliente global (coherente con el resto del sistema).
- *
- * IMPORTANTE: El promedio de calificación lo calculan AUTOMÁTICAMENTE los
- * triggers de la base de datos. Este servicio NO calcula promedios.
+ * El carrito pertenece a un CLIENTE global. Dado el usuario autenticado,
+ * resolvemos (o creamos) su perfil de cliente, que no está atado a empresa.
+ * La relación con la empresa vive en el carrito y en los pedidos.
+ * El stock solo se valida aquí; se reserva al convertir el carrito en pedido.
  */
-
-// =====================================================
-// VALIDACIÓN DE COMPRA
-// =====================================================
 
 /**
- * Verifica que el cliente haya comprado y recibido el producto
- * Busca un pedido entregado del cliente que contenga el producto
- *
- * @returns {Promise<object|null>} El pedido que respalda la compra, o null
+ * Resuelve el cliente global vinculado a un usuario.
+ * Si no existe, lo crea automáticamente (cliente global, sin empresa).
  */
-const buscarPedidoQueRespalda = async (idCliente, idProducto, idEmpresa) => {
-    const pedidosEntregados = await Pedido.findAll({
-        where: {
+const resolverCliente = async (idUsuario, transaction = null) => {
+    const opciones = transaction ? { transaction } : {};
+
+    let cliente = await Cliente.findOne({
+        where: { idUsuario, eliminado: false },
+        ...opciones
+    });
+
+    if (!cliente) {
+        cliente = await Cliente.create({
+            idUsuario,
+            idEmpresa: null,
+            activo: true,
+            eliminado: false
+        }, opciones);
+        logger.info(`Perfil de cliente creado automáticamente para usuario ${idUsuario}`);
+    }
+
+    return cliente;
+};
+
+/**
+ * Obtiene el stock disponible de un producto en la empresa
+ */
+const obtenerStockDisponible = async (idProducto, idEmpresa) => {
+    const bodegaPrincipal = await inventarioService.obtenerBodegaPrincipal(idEmpresa);
+    if (!bodegaPrincipal) {
+        return 0;
+    }
+
+    const stock = await StockProducto.findOne({
+        where: { idProducto, idBodega: bodegaPrincipal.idBodega }
+    });
+
+    return stock ? stock.cantidadDisponible() : 0;
+};
+
+/**
+ * Obtiene el carrito activo del cliente para una empresa, o lo crea si no existe
+ */
+const obtenerOCrearCarrito = async (idCliente, idEmpresa, transaction = null) => {
+    const opciones = transaction ? { transaction } : {};
+
+    let carrito = await Carrito.findOne({
+        where: { idCliente, idEmpresa, estado: 'activo' },
+        ...opciones
+    });
+
+    if (!carrito) {
+        carrito = await Carrito.create({
             idCliente,
             idEmpresa,
-            estado: 'entregado',
-            eliminado: false
-        },
-        attributes: ['idPedido']
-    });
-
-    if (pedidosEntregados.length === 0) {
-        return null;
+            estado: 'activo',
+            subtotal: 0,
+            descuento: 0,
+            costoDomicilio: 0,
+            total: 0
+        }, opciones);
+        logger.info(`Carrito creado para cliente ${idCliente} en empresa ${idEmpresa}`);
     }
 
-    const idsPedidos = pedidosEntregados.map(p => p.idPedido);
-
-    const detalle = await DetallePedido.findOne({
-        where: {
-            idPedido: { [Op.in]: idsPedidos },
-            idProducto
-        }
-    });
-
-    if (!detalle) {
-        return null;
-    }
-
-    return { idPedido: detalle.idPedido };
+    return carrito;
 };
 
-// =====================================================
-// CREAR RESEÑA
-// =====================================================
+/**
+ * Obtiene el carrito con todos sus items y datos de productos
+ */
+const obtenerCarritoCompleto = async (idUsuario, idEmpresa) => {
+    const cliente = await resolverCliente(idUsuario);
+
+    const carrito = await Carrito.findOne({
+        where: { idCliente: cliente.idCliente, idEmpresa, estado: 'activo' }
+    });
+
+    if (!carrito) {
+        return {
+            carrito: null,
+            items: [],
+            mensaje: 'No tienes un carrito activo'
+        };
+    }
+
+    const items = await ItemCarrito.findAll({
+        where: { idCarrito: carrito.idCarrito },
+        order: [['fecha_creacion', 'ASC']]
+    });
+
+    const itemsConProducto = [];
+    for (const item of items) {
+        const producto = await Producto.findByPk(item.idProducto);
+        itemsConProducto.push({
+            ...item.datosCompletos(),
+            producto: producto ? {
+                nombre: producto.nombre,
+                disponible: producto.activo && !producto.eliminado
+            } : null
+        });
+    }
+
+    return {
+        carrito: carrito.datosCompletos(),
+        items: itemsConProducto
+    };
+};
 
 /**
- * Crea una reseña
- *
- * @param {string} idEmpresa - Empresa
- * @param {string} idUsuario - Usuario autenticado (se resuelve a cliente)
- * @param {object} datos - { idProducto, calificacion, titulo, comentario }
- * @returns {Promise<object>} { exito, resena, mensaje }
+ * Agrega un producto al carrito validando stock disponible
  */
-const crearResena = async (idEmpresa, idUsuario, datos) => {
-    const { idProducto, calificacion, titulo, comentario } = datos;
+const agregarProducto = async (idUsuario, idEmpresa, datos) => {
+    const transaction = await sequelize.transaction();
 
-    // Resolver el cliente global a partir del usuario autenticado
-    const cliente = await carritoService.resolverCliente(idUsuario);
-    const idCliente = cliente.idCliente;
+    try {
+        const cliente = await resolverCliente(idUsuario, transaction);
 
-    let idPedidoRespaldo = null;
-
-    if (idProducto) {
-        // Verificar que no haya reseñado ya este producto
-        const resenaExistente = await Resena.findOne({
-            where: {
-                idCliente,
-                idProducto,
-                eliminado: false
-            }
+        const producto = await Producto.findOne({
+            where: { idProducto: datos.idProducto, idEmpresa, eliminado: false },
+            transaction
         });
 
-        if (resenaExistente) {
+        if (!producto) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'Producto no encontrado' };
+        }
+
+        if (!producto.activo) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'El producto no está disponible' };
+        }
+
+        const cantidadSolicitada = parseInt(datos.cantidad, 10) || 1;
+
+        const disponible = await obtenerStockDisponible(datos.idProducto, idEmpresa);
+
+        const carrito = await obtenerOCrearCarrito(cliente.idCliente, idEmpresa, transaction);
+
+        const itemExistente = await ItemCarrito.findOne({
+            where: { idCarrito: carrito.idCarrito, idProducto: datos.idProducto },
+            transaction
+        });
+
+        const cantidadEnCarrito = itemExistente ? itemExistente.cantidad : 0;
+        const cantidadTotal = cantidadEnCarrito + cantidadSolicitada;
+
+        if (cantidadTotal > disponible) {
+            await transaction.rollback();
             return {
                 exito: false,
-                mensaje: 'Ya has reseñado este producto. Puedes editar tu reseña existente.',
-                yaResenado: true
+                mensaje: `Stock insuficiente. Disponible: ${disponible}, en tu carrito: ${cantidadEnCarrito}, solicitado: ${cantidadSolicitada}`
             };
         }
 
-        // Validar compra
-        const respaldo = await buscarPedidoQueRespalda(idCliente, idProducto, idEmpresa);
-
-        if (!respaldo) {
-            return {
-                exito: false,
-                mensaje: 'Solo puedes reseñar productos que hayas comprado y recibido'
-            };
+        if (itemExistente) {
+            itemExistente.cantidad = cantidadTotal;
+            itemExistente.precioUnitario = producto.precioVenta;
+            if (datos.notas !== undefined) {
+                itemExistente.notas = datos.notas;
+            }
+            itemExistente.calcularSubtotal();
+            await itemExistente.save({ transaction });
+        } else {
+            const nuevoItem = ItemCarrito.build({
+                idCarrito: carrito.idCarrito,
+                idProducto: datos.idProducto,
+                cantidad: cantidadSolicitada,
+                precioUnitario: producto.precioVenta,
+                descuento: 0,
+                notas: datos.notas || null
+            });
+            nuevoItem.calcularSubtotal();
+            await nuevoItem.save({ transaction });
         }
 
-        idPedidoRespaldo = respaldo.idPedido;
+        const items = await ItemCarrito.findAll({
+            where: { idCarrito: carrito.idCarrito },
+            transaction
+        });
+
+        carrito.recalcularTotales(items);
+        await carrito.save({ transaction });
+
+        await transaction.commit();
+
+        logger.info(`Producto ${datos.idProducto} agregado al carrito ${carrito.idCarrito}`);
+
+        return { exito: true, mensaje: 'Producto agregado al carrito' };
+    } catch (error) {
+        await transaction.rollback();
+        logger.error(`Error al agregar producto al carrito: ${error.message}`);
+        throw error;
     }
-
-    const resena = await Resena.create({
-        idEmpresa,
-        idProducto: idProducto || null,
-        idCliente,
-        idPedido: idPedidoRespaldo,
-        calificacion,
-        titulo: titulo || null,
-        comentario: comentario || null,
-        visible: true
-    });
-
-    logger.info(`Reseña creada: ${resena.idResena} por cliente ${idCliente}`);
-
-    return {
-        exito: true,
-        resena: resena.datosCompletos(),
-        mensaje: 'Reseña publicada'
-    };
 };
 
-// =====================================================
-// LISTAR RESEÑAS
-// =====================================================
-
 /**
- * Lista las reseñas visibles de un producto
+ * Actualiza la cantidad de un item del carrito
  */
-const listarResenasProducto = async (idProducto, filtros = {}) => {
-    const pagina = parseInt(filtros.pagina, 10) || 1;
-    const limit = parseInt(filtros.limit, 10) || 20;
-    const offset = (pagina - 1) * limit;
+const actualizarCantidad = async (idUsuario, idEmpresa, idItem, nuevaCantidad) => {
+    const transaction = await sequelize.transaction();
 
-    const { count, rows } = await Resena.findAndCountAll({
-        where: {
-            idProducto,
-            visible: true,
-            eliminado: false
-        },
-        order: [['fecha_creacion', 'DESC']],
-        limit,
-        offset
-    });
+    try {
+        const cliente = await resolverCliente(idUsuario, transaction);
 
-    return {
-        resenas: rows.map(r => r.datosCompletos()),
-        paginacion: {
-            total: count,
-            pagina,
-            limit,
-            totalPaginas: Math.ceil(count / limit)
+        const carrito = await Carrito.findOne({
+            where: { idCliente: cliente.idCliente, idEmpresa, estado: 'activo' },
+            transaction
+        });
+
+        if (!carrito) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'No tienes un carrito activo' };
         }
-    };
-};
 
-/**
- * Lista las reseñas que ha hecho el cliente (resuelto desde el usuario)
- */
-const listarResenasCliente = async (idUsuario) => {
-    const cliente = await carritoService.resolverCliente(idUsuario);
+        const item = await ItemCarrito.findOne({
+            where: { idItem, idCarrito: carrito.idCarrito },
+            transaction
+        });
 
-    const resenas = await Resena.findAll({
-        where: { idCliente: cliente.idCliente, eliminado: false },
-        order: [['fecha_creacion', 'DESC']]
-    });
+        if (!item) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'Item no encontrado en el carrito' };
+        }
 
-    return { resenas: resenas.map(r => r.datosCompletos()) };
-};
+        const cantidad = parseInt(nuevaCantidad, 10);
 
-// =====================================================
-// EDITAR Y ELIMINAR
-// =====================================================
+        if (cantidad < 1) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'La cantidad debe ser al menos 1. Para quitar el producto, elimínalo del carrito.' };
+        }
 
-/**
- * Edita la propia reseña del cliente
- */
-const editarResena = async (idResena, idUsuario, datos) => {
-    const cliente = await carritoService.resolverCliente(idUsuario);
+        const disponible = await obtenerStockDisponible(item.idProducto, idEmpresa);
 
-    const resena = await Resena.findOne({
-        where: { idResena, idCliente: cliente.idCliente, eliminado: false }
-    });
+        if (cantidad > disponible) {
+            await transaction.rollback();
+            return { exito: false, mensaje: `Stock insuficiente. Disponible: ${disponible}, solicitado: ${cantidad}` };
+        }
 
-    if (!resena) {
-        return { exito: false, mensaje: 'Reseña no encontrada o no es tuya' };
+        item.cantidad = cantidad;
+        item.calcularSubtotal();
+        await item.save({ transaction });
+
+        const items = await ItemCarrito.findAll({
+            where: { idCarrito: carrito.idCarrito },
+            transaction
+        });
+
+        carrito.recalcularTotales(items);
+        await carrito.save({ transaction });
+
+        await transaction.commit();
+
+        return { exito: true, mensaje: 'Cantidad actualizada' };
+    } catch (error) {
+        await transaction.rollback();
+        logger.error(`Error al actualizar cantidad: ${error.message}`);
+        throw error;
     }
-
-    if (datos.calificacion !== undefined) resena.calificacion = datos.calificacion;
-    if (datos.titulo !== undefined) resena.titulo = datos.titulo;
-    if (datos.comentario !== undefined) resena.comentario = datos.comentario;
-
-    await resena.save();
-
-    return { exito: true, resena: resena.datosCompletos(), mensaje: 'Reseña actualizada' };
 };
 
 /**
- * Elimina (soft delete) la propia reseña del cliente
+ * Quita un item del carrito
  */
-const eliminarResena = async (idResena, idUsuario) => {
-    const cliente = await carritoService.resolverCliente(idUsuario);
+const quitarItem = async (idUsuario, idEmpresa, idItem) => {
+    const transaction = await sequelize.transaction();
 
-    const resena = await Resena.findOne({
-        where: { idResena, idCliente: cliente.idCliente, eliminado: false }
-    });
+    try {
+        const cliente = await resolverCliente(idUsuario, transaction);
 
-    if (!resena) {
-        return { exito: false, mensaje: 'Reseña no encontrada o no es tuya' };
+        const carrito = await Carrito.findOne({
+            where: { idCliente: cliente.idCliente, idEmpresa, estado: 'activo' },
+            transaction
+        });
+
+        if (!carrito) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'No tienes un carrito activo' };
+        }
+
+        const item = await ItemCarrito.findOne({
+            where: { idItem, idCarrito: carrito.idCarrito },
+            transaction
+        });
+
+        if (!item) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'Item no encontrado en el carrito' };
+        }
+
+        await item.destroy({ transaction });
+
+        const items = await ItemCarrito.findAll({
+            where: { idCarrito: carrito.idCarrito },
+            transaction
+        });
+
+        carrito.recalcularTotales(items);
+        await carrito.save({ transaction });
+
+        await transaction.commit();
+
+        return { exito: true, mensaje: 'Producto quitado del carrito' };
+    } catch (error) {
+        await transaction.rollback();
+        logger.error(`Error al quitar item: ${error.message}`);
+        throw error;
     }
-
-    resena.eliminado = true;
-    await resena.save();
-
-    return { exito: true, mensaje: 'Reseña eliminada' };
 };
 
-// =====================================================
-// MODERACIÓN (por la empresa)
-// =====================================================
-
 /**
- * La empresa puede cambiar la visibilidad de una reseña (moderación)
+ * Vacía completamente el carrito
  */
-const cambiarVisibilidad = async (idResena, idEmpresa, visible) => {
-    const resena = await Resena.findOne({
-        where: { idResena, idEmpresa, eliminado: false }
-    });
+const vaciarCarrito = async (idUsuario, idEmpresa) => {
+    const transaction = await sequelize.transaction();
 
-    if (!resena) {
-        return { exito: false, mensaje: 'Reseña no encontrada' };
+    try {
+        const cliente = await resolverCliente(idUsuario, transaction);
+
+        const carrito = await Carrito.findOne({
+            where: { idCliente: cliente.idCliente, idEmpresa, estado: 'activo' },
+            transaction
+        });
+
+        if (!carrito) {
+            await transaction.rollback();
+            return { exito: false, mensaje: 'No tienes un carrito activo' };
+        }
+
+        await ItemCarrito.destroy({
+            where: { idCarrito: carrito.idCarrito },
+            transaction
+        });
+
+        carrito.subtotal = 0;
+        carrito.descuento = 0;
+        carrito.total = 0;
+        await carrito.save({ transaction });
+
+        await transaction.commit();
+
+        return { exito: true, mensaje: 'Carrito vaciado' };
+    } catch (error) {
+        await transaction.rollback();
+        logger.error(`Error al vaciar carrito: ${error.message}`);
+        throw error;
     }
-
-    resena.visible = visible;
-    await resena.save();
-
-    const estado = visible ? 'visible' : 'oculta';
-    return { exito: true, mensaje: `Reseña marcada como ${estado}` };
 };
 
 module.exports = {
-    crearResena,
-    listarResenasProducto,
-    listarResenasCliente,
-    editarResena,
-    eliminarResena,
-    cambiarVisibilidad
+    resolverCliente,
+    obtenerStockDisponible,
+    obtenerOCrearCarrito,
+    obtenerCarritoCompleto,
+    agregarProducto,
+    actualizarCantidad,
+    quitarItem,
+    vaciarCarrito
 };

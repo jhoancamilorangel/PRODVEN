@@ -38,6 +38,7 @@ const resenaRoutes = require('./src/routes/resenaRoutes');
 const promocionRoutes = require('./src/routes/promocionRoutes');
 const notificacionRoutes = require('./src/routes/notificacionRoutes');
 const reporteRoutes = require('./src/routes/reporteRoutes');
+const auditoriaRoutes = require('./src/routes/auditoriaRoutes');
 
 const app = express();
 
@@ -93,6 +94,7 @@ app.use('/api/resenas', resenaRoutes);
 app.use('/api/promociones', promocionRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/reportes', reporteRoutes);
+app.use('/api/auditoria', auditoriaRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
