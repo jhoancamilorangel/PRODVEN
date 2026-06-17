@@ -35,6 +35,7 @@ const ubicacionRoutes = require('./src/routes/ubicacionRoutes');
 const zonaRoutes = require('./src/routes/zonaRoutes');
 const mensajeriaRoutes = require('./src/routes/mensajeriaRoutes');
 const resenaRoutes = require('./src/routes/resenaRoutes');
+const promocionRoutes = require('./src/routes/promocionRoutes');
 
 const app = express();
 
@@ -87,6 +88,7 @@ app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/zonas', zonaRoutes);
 app.use('/api/conversaciones', mensajeriaRoutes);
 app.use('/api/resenas', resenaRoutes);
+app.use('/api/promociones', promocionRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
