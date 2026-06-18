@@ -1,0 +1,64 @@
+/* ===================================================
+   ESTILOS GLOBALES DE PRODVEN
+   Aplican a toda la aplicación. Usan las variables
+   definidas en styles/variables.css
+   =================================================== */
+
+@import './styles/variables.css';
+
+/* ===== RESET BÁSICO ===== */
+/* Quita los márgenes y rellenos por defecto del navegador
+   para tener control total del diseño */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ===== ESTILOS DEL CUERPO ===== */
+body {
+    font-family: var(--fuente-principal);
+    font-size: var(--tamano-base);
+    color: var(--color-azul);
+    background-color: var(--color-gris-fondo);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ===== ENLACES ===== */
+a {
+    color: var(--color-azul);
+    text-decoration: none;
+    transition: color var(--transicion);
+}
+
+a:hover {
+    color: var(--color-verde);
+}
+
+/* ===== TÍTULOS ===== */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--color-azul);
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+/* ===== BOTONES (estilo base) ===== */
+button {
+    font-family: var(--fuente-principal);
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radio-borde-sm);
+    transition: all var(--transicion);
+}
+
+/* ===== CAMPOS DE FORMULARIO (estilo base) ===== */
+input, select, textarea {
+    font-family: var(--fuente-principal);
+    font-size: var(--tamano-base);
+}
+
+/* ===== RAÍZ DE LA APP ===== */
+#root {
+    min-height: 100vh;
+}

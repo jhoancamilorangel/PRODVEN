@@ -1,0 +1,48 @@
+/* ===================================================
+   ESTILOS DEL COMPONENTE APP (pantalla de bienvenida)
+   =================================================== */
+
+.bienvenida {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--color-azul) 0%, var(--color-azul-oscuro) 100%);
+    padding: var(--espacio-md);
+}
+
+.bienvenida-tarjeta {
+    background-color: var(--color-blanco);
+    padding: var(--espacio-xxl);
+    border-radius: var(--radio-borde);
+    box-shadow: var(--sombra-fuerte);
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+}
+
+.bienvenida-titulo {
+    font-size: 48px;
+    color: var(--color-azul);
+    margin-bottom: var(--espacio-xs);
+}
+
+.bienvenida-subtitulo {
+    font-size: 18px;
+    color: var(--color-verde);
+    font-weight: 600;
+    margin-bottom: var(--espacio-lg);
+}
+
+.bienvenida-linea {
+    height: 3px;
+    width: 60px;
+    background-color: var(--color-verde);
+    margin: 0 auto var(--espacio-lg);
+    border-radius: 2px;
+}
+
+.bienvenida-texto {
+    color: var(--color-gris-texto);
+    font-size: 15px;
+}
