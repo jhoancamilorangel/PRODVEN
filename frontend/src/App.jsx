@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Productos from './pages/Productos';
 import Categorias from './pages/Categorias';
 import Pedidos from './pages/Pedidos';
+import Inventario from './pages/Inventario';
 
 function App() {
     return (
@@ -43,6 +44,14 @@ function App() {
     element={
         <RutaProtegida>
             <Layout><Pedidos /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/inventario"
+    element={
+        <RutaProtegida>
+            <Layout><Inventario /></Layout>
         </RutaProtegida>
     }
 />
