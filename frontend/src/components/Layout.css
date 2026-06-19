@@ -1,0 +1,36 @@
+.layout {
+    min-height: 100vh;
+    background: var(--color-gris-fondo);
+}
+
+.layout-principal {
+    margin-left: 260px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: margin-left var(--transicion);
+}
+
+.layout-contenido {
+    flex: 1;
+    padding: var(--espacio-xl);
+    max-width: 1400px;
+    width: 100%;
+}
+
+.layout-overlay {
+    display: none;
+}
+
+@media (max-width: 860px) {
+    .layout-principal {
+        margin-left: 0;
+    }
+    .layout-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 90;
+    }
+}

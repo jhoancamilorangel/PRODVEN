@@ -5,36 +5,29 @@
    =================================================== */
 
 :root {
-    /* ===== PALETA CORPORATIVA ===== */
-    --color-azul: #0A2A43;          /* Azul corporativo (principal) */
-    --color-verde: #27AE60;         /* Verde éxito (acciones, confirmaciones) */
+    --color-azul: #163b73;
+    --color-verde: #10b981;
     --color-blanco: #FFFFFF;
 
-    /* ===== VARIACIONES DEL AZUL ===== */
-    --color-azul-claro: #14456b;    /* Azul más claro (hover, acentos) */
-    --color-azul-oscuro: #061d2f;   /* Azul más oscuro (profundidad) */
+    --color-azul-claro: #1e4d94;
+    --color-azul-oscuro: #0f2a52;
 
-    /* ===== VARIACIONES DEL VERDE ===== */
-    --color-verde-claro: #2ecc71;
-    --color-verde-oscuro: #1e8449;
+    --color-verde-claro: #34d399;
+    --color-verde-oscuro: #059669;
 
-    /* ===== GRISES (interfaz) ===== */
-    --color-gris-fondo: #f4f6f8;    /* Fondo general de la app */
-    --color-gris-borde: #e1e5ea;    /* Bordes suaves */
-    --color-gris-texto: #5a6772;    /* Texto secundario */
+    --color-gris-fondo: #f3f4f6;
+    --color-gris-borde: #e5e7eb;
+    --color-gris-texto: #6b7280;
     --color-gris-claro: #eceff1;
 
-    /* ===== COLORES DE ESTADO ===== */
-    --color-exito: #27AE60;
+    --color-exito: #10b981;
     --color-error: #e74c3c;
     --color-advertencia: #f39c12;
     --color-info: #3498db;
 
-    /* ===== TIPOGRAFÍA ===== */
-    --fuente-principal: 'Segoe UI', 'Roboto', -apple-system, sans-serif;
+    --fuente-principal: Arial, 'Segoe UI', sans-serif;
     --tamano-base: 16px;
 
-    /* ===== ESPACIADOS (sistema de 8px) ===== */
     --espacio-xs: 4px;
     --espacio-sm: 8px;
     --espacio-md: 16px;
@@ -42,13 +35,12 @@
     --espacio-xl: 32px;
     --espacio-xxl: 48px;
 
-    /* ===== BORDES Y SOMBRAS ===== */
-    --radio-borde: 8px;
-    --radio-borde-sm: 4px;
-    --sombra-suave: 0 1px 3px rgba(10, 42, 67, 0.1);
-    --sombra-media: 0 4px 12px rgba(10, 42, 67, 0.12);
-    --sombra-fuerte: 0 8px 24px rgba(10, 42, 67, 0.16);
+    --radio-borde: 16px;
+    --radio-borde-sm: 10px;
+    --radio-borde-lg: 20px;
+    --sombra-suave: 0 6px 18px rgba(15, 23, 42, 0.08);
+    --sombra-media: 0 12px 25px rgba(15, 23, 42, 0.15);
+    --sombra-fuerte: 0 12px 25px rgba(15, 23, 42, 0.25);
 
-    /* ===== TRANSICIONES ===== */
-    --transicion: 0.2s ease;
+    --transicion: 0.25s ease;
 }

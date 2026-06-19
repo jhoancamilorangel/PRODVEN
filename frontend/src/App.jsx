@@ -1,22 +1,46 @@
-import './App.css';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import RutaProtegida from './components/RutaProtegida';
+import Layout from './components/Layout';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Productos from './pages/Productos';
+import Categorias from './pages/Categorias';
 
-/**
- * Componente raíz de la aplicación ProdVen.
- * Por ahora muestra una pantalla de bienvenida de prueba.
- * Más adelante aquí irá el enrutamiento (login, dashboard, etc.).
- */
 function App() {
     return (
-        <div className="bienvenida">
-            <div className="bienvenida-tarjeta">
-                <h1 className="bienvenida-titulo">ProdVen</h1>
-                <p className="bienvenida-subtitulo">Panel Administrativo</p>
-                <div className="bienvenida-linea"></div>
-                <p className="bienvenida-texto">
-                    Frontend en construcción. Cimientos listos.
-                </p>
-            </div>
-        </div>
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route
+                        path="/dashboard"
+                        element={
+                            <RutaProtegida>
+                                <Layout><Dashboard /></Layout>
+                            </RutaProtegida>
+                        }
+                    />
+                    <Route
+                        path="/productos"
+                        element={
+                            <RutaProtegida>
+                                <Layout><Productos /></Layout>
+                            </RutaProtegida>
+                        }
+                    />
+                    <Route
+    path="/categorias"
+    element={
+        <RutaProtegida>
+            <Layout><Categorias /></Layout>
+        </RutaProtegida>
+    }
+/>
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+            </BrowserRouter>
+        </AuthProvider>
     );
 }
 
