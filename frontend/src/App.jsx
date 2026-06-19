@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Productos from './pages/Productos';
 import Categorias from './pages/Categorias';
+import Pedidos from './pages/Pedidos';
 
 function App() {
     return (
@@ -34,6 +35,14 @@ function App() {
     element={
         <RutaProtegida>
             <Layout><Categorias /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/pedidos"
+    element={
+        <RutaProtegida>
+            <Layout><Pedidos /></Layout>
         </RutaProtegida>
     }
 />
