@@ -13,6 +13,8 @@ import Logistica from './pages/Logistica';
 import Pagos from './pages/Pagos';
 import Engagement from './pages/Engagement';
 import Reportes from './pages/Reportes';
+import Auditoria from './pages/Auditoria';
+import Configuracion from './pages/Configuracion';
 
 function App() {
     return (
@@ -97,6 +99,22 @@ function App() {
     element={
         <RutaProtegida>
             <Layout><Reportes /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/auditoria"
+    element={
+        <RutaProtegida>
+            <Layout><Auditoria /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/configuracion"
+    element={
+        <RutaProtegida>
+            <Layout><Configuracion /></Layout>
         </RutaProtegida>
     }
 />
