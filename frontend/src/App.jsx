@@ -10,6 +10,7 @@ import Pedidos from './pages/Pedidos';
 import Inventario from './pages/Inventario';
 import Produccion from './pages/Produccion';
 import Logistica from './pages/Logistica';
+import Pagos from './pages/Pagos';
 
 function App() {
     return (
@@ -70,6 +71,14 @@ function App() {
     element={
         <RutaProtegida>
             <Layout><Logistica /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/pagos"
+    element={
+        <RutaProtegida>
+            <Layout><Pagos /></Layout>
         </RutaProtegida>
     }
 />
