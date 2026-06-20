@@ -8,6 +8,8 @@ import Productos from './pages/Productos';
 import Categorias from './pages/Categorias';
 import Pedidos from './pages/Pedidos';
 import Inventario from './pages/Inventario';
+import Produccion from './pages/Produccion';
+import Logistica from './pages/Logistica';
 
 function App() {
     return (
@@ -52,6 +54,22 @@ function App() {
     element={
         <RutaProtegida>
             <Layout><Inventario /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/produccion"
+    element={
+        <RutaProtegida>
+            <Layout><Produccion /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/logistica"
+    element={
+        <RutaProtegida>
+            <Layout><Logistica /></Layout>
         </RutaProtegida>
     }
 />

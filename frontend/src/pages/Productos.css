@@ -359,3 +359,20 @@
     .prod-tabla-contenedor { overflow-x: auto; }
     .prod-tabla { min-width: 640px; }
 }
+.prod-checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 10px !important;
+    cursor: pointer;
+    font-weight: 500 !important;
+}
+.prod-checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-verde);
+    cursor: pointer;
+}
+.prod-checkbox-label span {
+    font-size: 14px;
+    color: var(--color-azul);
+}

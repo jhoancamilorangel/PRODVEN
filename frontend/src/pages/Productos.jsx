@@ -13,7 +13,7 @@ import './Productos.css';
 const FORM_VACIO = {
     nombre: '', codigoSku: '', descripcionCorta: '', descripcion: '',
     precioVenta: '', precioCosto: '', cantidadStock: '', stockMinimo: '',
-    idCategoria: '', disponible: true
+    idCategoria: '', disponible: true, esFabricado: false
 };
 
 function Productos() {
@@ -83,7 +83,8 @@ function Productos() {
             cantidadStock: p.cantidadStock || '',
             stockMinimo: p.stockMinimo || '',
             idCategoria: p.idCategoria || '',
-            disponible: p.disponible ?? true
+            disponible: p.disponible ?? true,
+            esFabricado: p. esFabricado ?? false
         });
         setModalAbierto(true);
     };
@@ -325,6 +326,16 @@ function Productos() {
                                 <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>
                             ))}
                         </select>
+                    </div>
+                    <div className="prod-form-campo">
+                        <label className="prod-checkbox-label">
+                            <input
+                                type="checkbox"
+                                checked={form.esFabricado}
+                                onChange={(e) => cambiarCampo('esFabricado', e.target.checked)}
+                            />
+                            <span>Este producto se fabrica (tiene receta de producción)</span>
+                        </label>
                     </div>
 
                     <div className="prod-form-acciones">
