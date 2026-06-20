@@ -1,0 +1,234 @@
+/* ===================================================
+   PÁGINA DE REPORTES — Dashboard ejecutivo premium
+   =================================================== */
+
+.reportes {
+    animation: repAparecer 0.5s ease;
+}
+@keyframes repAparecer { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+.rep-cabecera {
+    margin-bottom: var(--espacio-xl);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+.rep-cabecera h1 {
+    font-size: 30px;
+    color: var(--color-azul);
+    margin-bottom: var(--espacio-xs);
+    letter-spacing: -0.5px;
+}
+.rep-cabecera p { color: var(--color-gris-texto); font-size: 15px; }
+
+/* ===== MÉTRICAS PRINCIPALES ===== */
+.rep-metricas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(235px, 1fr));
+    gap: var(--espacio-lg);
+    margin-bottom: var(--espacio-xl);
+}
+
+.rep-metrica {
+    position: relative;
+    background: var(--color-blanco);
+    border-radius: 20px;
+    padding: var(--espacio-lg);
+    box-shadow: 0 4px 24px rgba(22, 59, 115, 0.06);
+    border: 1px solid rgba(22, 59, 115, 0.04);
+    overflow: hidden;
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s ease;
+}
+.rep-metrica::after {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: var(--rep-halo, rgba(39,174,96,0.08));
+    transition: transform 0.4s ease;
+}
+.rep-metrica:hover { transform: translateY(-6px); box-shadow: 0 16px 40px rgba(22, 59, 115, 0.12); }
+.rep-metrica:hover::after { transform: scale(1.4); }
+
+.rep-metrica-icono {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    margin-bottom: var(--espacio-md);
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 8px 20px var(--rep-sombra-icono, rgba(39,174,96,0.35));
+}
+
+.rep-metrica-info { display: flex; flex-direction: column; position: relative; z-index: 1; }
+.rep-metrica-valor { font-size: 27px; font-weight: 800; color: var(--color-azul); line-height: 1.1; letter-spacing: -0.5px; }
+.rep-metrica-label { font-size: 13px; color: var(--color-gris-texto); margin-top: 6px; font-weight: 500; }
+
+.rep-metrica-tendencia {
+    position: absolute;
+    top: var(--espacio-lg);
+    right: var(--espacio-lg);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 20px;
+    z-index: 1;
+}
+.rep-tendencia-sube { background: rgba(39,174,96,0.12); color: #1e8449; }
+.rep-tendencia-baja { background: rgba(231,76,60,0.12); color: #c0392b; }
+
+/* ===== PANELES ===== */
+.rep-panel {
+    background: var(--color-blanco);
+    border-radius: 20px;
+    padding: var(--espacio-xl);
+    box-shadow: 0 4px 24px rgba(22, 59, 115, 0.06);
+    border: 1px solid rgba(22, 59, 115, 0.04);
+    margin-bottom: var(--espacio-lg);
+}
+
+.rep-panel-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--espacio-lg);
+}
+.rep-panel-titulo-grupo { display: flex; align-items: center; gap: var(--espacio-md); }
+.rep-panel-icono {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+}
+.rep-panel-cabecera h2 { font-size: 19px; color: var(--color-azul); margin-bottom: 2px; letter-spacing: -0.3px; }
+.rep-panel-cabecera p { font-size: 13px; color: var(--color-gris-texto); }
+
+/* ===== FILA DE DOS PANELES ===== */
+.rep-fila {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--espacio-lg);
+}
+.rep-fila .rep-panel { margin-bottom: 0; }
+
+/* ===== RANKING DE PRODUCTOS ===== */
+.rep-ranking { display: flex; flex-direction: column; gap: var(--espacio-md); }
+
+.rep-ranking-item {
+    display: flex;
+    align-items: center;
+    gap: var(--espacio-md);
+    padding: 10px;
+    border-radius: 14px;
+    transition: background 0.25s ease;
+}
+.rep-ranking-item:hover { background: rgba(22,59,115,0.03); }
+
+.rep-ranking-pos {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: rgba(22,59,115,0.04);
+}
+
+.rep-ranking-num {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--color-gris-texto);
+}
+
+.rep-ranking-info { flex: 1; min-width: 0; }
+.rep-ranking-nombre {
+    display: block;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--color-azul);
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rep-ranking-barra-fondo {
+    height: 9px;
+    background: rgba(22,59,115,0.06);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.rep-ranking-barra {
+    height: 100%;
+    background: linear-gradient(90deg, #163b73, #27AE60);
+    border-radius: 10px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 2px 8px rgba(39,174,96,0.3);
+}
+
+.rep-ranking-valor {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--color-azul);
+    flex-shrink: 0;
+    min-width: 40px;
+    text-align: right;
+}
+
+/* ===== SIN DATOS / CARGA ===== */
+.rep-sin-datos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 50px 20px;
+    color: var(--color-gris-texto);
+    font-size: 14px;
+    background: rgba(22,59,115,0.02);
+    border-radius: 16px;
+}
+
+.rep-cargando {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+    color: var(--color-gris-texto);
+    gap: var(--espacio-md);
+    background: var(--color-blanco);
+    border-radius: 20px;
+}
+
+.rep-spinner {
+    width: 44px;
+    height: 44px;
+    border: 4px solid rgba(22,59,115,0.1);
+    border-top-color: var(--color-verde);
+    border-radius: 50%;
+    animation: girar 0.8s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+    .rep-fila { grid-template-columns: 1fr; }
+    .rep-cabecera { flex-direction: column; align-items: flex-start; gap: var(--espacio-md); }
+}
+/* Medallas del podio con halo */
+.rep-ranking-item:nth-child(1) .rep-ranking-pos { background: rgba(255, 215, 0, 0.15); }
+.rep-ranking-item:nth-child(2) .rep-ranking-pos { background: rgba(192, 192, 192, 0.18); }
+.rep-ranking-item:nth-child(3) .rep-ranking-pos { background: rgba(205, 127, 50, 0.15); }

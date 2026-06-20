@@ -12,6 +12,7 @@ import Produccion from './pages/Produccion';
 import Logistica from './pages/Logistica';
 import Pagos from './pages/Pagos';
 import Engagement from './pages/Engagement';
+import Reportes from './pages/Reportes';
 
 function App() {
     return (
@@ -88,6 +89,14 @@ function App() {
     element={
         <RutaProtegida>
             <Layout><Engagement /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/reportes"
+    element={
+        <RutaProtegida>
+            <Layout><Reportes /></Layout>
         </RutaProtegida>
     }
 />
