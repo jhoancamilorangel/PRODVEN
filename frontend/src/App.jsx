@@ -16,6 +16,7 @@ import Reportes from './pages/Reportes';
 import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
 import MiTienda from './pages/MiTienda';
+import Marketplace from './pages/marketplace';
 
 function App() {
     return (
@@ -127,6 +128,8 @@ function App() {
         </RutaProtegida>
     }
 />
+<Route path="/marketplace" element={<Marketplace />}
+ />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
             </BrowserRouter>

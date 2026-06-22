@@ -1,0 +1,111 @@
+/* ===================================================
+   HEADER DEL MARKETPLACE
+   =================================================== */
+
+.mkt-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #fff;
+    box-shadow: 0 2px 16px rgba(22, 59, 115, 0.07);
+}
+
+.mkt-header-contenido {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: var(--espacio-lg);
+}
+
+.mkt-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.mkt-logo-icono {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #163b73, #2980b9);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(22, 59, 115, 0.3);
+}
+.mkt-logo-texto {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--color-azul);
+    letter-spacing: -0.5px;
+}
+
+/* Buscador */
+.mkt-buscador {
+    flex: 1;
+    max-width: 620px;
+    display: flex;
+    align-items: center;
+    background: var(--color-gris-fondo);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 0 6px 0 16px;
+    transition: all 0.25s ease;
+}
+.mkt-buscador:focus-within {
+    border-color: var(--color-verde);
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(39, 174, 96, 0.1);
+}
+.mkt-buscador-icono { color: var(--color-gris-texto); flex-shrink: 0; }
+.mkt-buscador input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 13px 12px;
+    font-size: 15px;
+    color: var(--color-azul);
+    outline: none;
+    font-family: var(--fuente-principal);
+}
+.mkt-buscador-btn {
+    background: var(--color-azul);
+    color: #fff;
+    padding: 9px 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.25s ease;
+    flex-shrink: 0;
+}
+.mkt-buscador-btn:hover { background: #1e4d94; }
+
+/* Acciones */
+.mkt-header-acciones {
+    display: flex;
+    align-items: center;
+    gap: var(--espacio-sm);
+    flex-shrink: 0;
+}
+.mkt-header-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    color: var(--color-azul);
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.25s ease;
+}
+.mkt-header-btn:hover { background: var(--color-gris-fondo); }
+.mkt-header-btn svg { flex-shrink: 0; }
+
+@media (max-width: 860px) {
+    .mkt-header-contenido { flex-wrap: wrap; }
+    .mkt-buscador { order: 3; max-width: 100%; width: 100%; }
+    .mkt-header-btn-texto { display: none; }
+}

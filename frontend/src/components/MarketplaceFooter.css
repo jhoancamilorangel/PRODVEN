@@ -1,0 +1,83 @@
+/* ===================================================
+   FOOTER DEL MARKETPLACE
+   =================================================== */
+
+.mkt-footer {
+    background: linear-gradient(135deg, #0f2847, #163b73);
+    color: #fff;
+    margin-top: 80px;
+}
+
+.mkt-footer-contenido {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 56px 24px 40px;
+    display: grid;
+    grid-template-columns: 1.4fr 2fr;
+    gap: var(--espacio-xl);
+}
+
+.mkt-footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: var(--espacio-sm);
+}
+.mkt-footer-logo svg { color: #27AE60; }
+
+.mkt-footer-marca p {
+    font-size: 14px;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.6;
+    max-width: 280px;
+}
+
+.mkt-footer-cols {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--espacio-lg);
+}
+.mkt-footer-col h4 {
+    font-size: 15px;
+    margin-bottom: var(--espacio-md);
+    color: #fff;
+}
+.mkt-footer-col a {
+    display: block;
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 10px;
+    transition: color 0.2s ease;
+}
+.mkt-footer-col a:hover { color: #27AE60; }
+
+.mkt-footer-base {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 22px 24px;
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: rgba(255,255,255,0.55);
+    flex-wrap: wrap;
+    gap: var(--espacio-sm);
+}
+.mkt-footer-hecho {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.mkt-footer-hecho svg { color: #e74c3c; }
+
+@media (max-width: 768px) {
+    .mkt-footer-contenido { grid-template-columns: 1fr; gap: var(--espacio-lg); }
+    .mkt-footer-cols { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 520px) {
+    .mkt-footer-cols { grid-template-columns: 1fr; }
+}
