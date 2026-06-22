@@ -17,6 +17,7 @@ import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
 import MiTienda from './pages/MiTienda';
 import Marketplace from './pages/marketplace';
+import Tienda from './pages/Tienda';
 
 function App() {
     return (
@@ -130,6 +131,8 @@ function App() {
 />
 <Route path="/marketplace" element={<Marketplace />}
  />
+ <Route path="/tienda/:idEmpresa" element={<Tienda />}
+  />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
             </BrowserRouter>
