@@ -15,6 +15,7 @@ import Engagement from './pages/Engagement';
 import Reportes from './pages/Reportes';
 import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
+import MiTienda from './pages/MiTienda';
 
 function App() {
     return (
@@ -115,6 +116,14 @@ function App() {
     element={
         <RutaProtegida>
             <Layout><Configuracion /></Layout>
+        </RutaProtegida>
+    }
+/>
+<Route
+    path="/mi-tienda"
+    element={
+        <RutaProtegida>
+            <Layout><MiTienda /></Layout>
         </RutaProtegida>
     }
 />

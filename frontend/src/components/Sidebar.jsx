@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard, Package, Warehouse, ShoppingCart, Factory,
-    MapPin, CreditCard, Sparkles, BarChart3, ShieldCheck, Settings, Tags
+    MapPin, CreditCard, Sparkles, BarChart3, ShieldCheck, Settings, Tags, Store
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -37,6 +37,12 @@ const SECCIONES = [
         items: [
             { ruta: '/pagos', etiqueta: 'Pagos', icono: CreditCard },
             { ruta: '/engagement', etiqueta: 'Engagement', icono: Sparkles }
+        ]
+    },
+    {
+        grupo: 'Marketplace',
+        items: [
+            { ruta: '/mi-tienda', etiqueta: 'Mi Tienda', icono: Store }
         ]
     },
     {
