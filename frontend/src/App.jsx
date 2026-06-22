@@ -18,10 +18,13 @@ import Configuracion from './pages/Configuracion';
 import MiTienda from './pages/MiTienda';
 import Marketplace from './pages/marketplace';
 import Tienda from './pages/Tienda';
+import AuthCliente from './pages/AuthCliente';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
     return (
-        <AuthProvider>
+       <AuthProvider>
+            <ErrorBoundary>
             <BrowserRouter>
                 <Routes>
                     <Route path="/login" element={<Login />} />
@@ -133,9 +136,12 @@ function App() {
  />
  <Route path="/tienda/:idEmpresa" element={<Tienda />}
   />
+  <Route path="/cuenta" element={<AuthCliente />}
+   />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
             </BrowserRouter>
+            </ErrorBoundary>
         </AuthProvider>
     );
 }

@@ -36,7 +36,7 @@ function MarketplaceHeader({ busqueda, onBuscar }) {
                         <ShoppingCart size={20} />
                         <span className="mkt-header-btn-texto">Carrito</span>
                     </button>
-                    <button className="mkt-header-btn" onClick={() => navigate('/login')}>
+                    <button className="mkt-header-btn" onClick={() => navigate('/cuenta')}>
                         <User size={20} />
                         <span className="mkt-header-btn-texto">Cuenta</span>
                     </button>

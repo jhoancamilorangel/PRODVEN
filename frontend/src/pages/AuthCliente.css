@@ -1,0 +1,253 @@
+/* ===================================================
+   AUTENTICACIÓN DE CLIENTES — Marketplace
+   =================================================== */
+
+.auth-cli {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+/* ===== LADO IZQUIERDO: MARCA ===== */
+.auth-cli-marca {
+    position: relative;
+    background: linear-gradient(135deg, #163b73 0%, #2980b9 60%, #27AE60 130%);
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overflow: hidden;
+}
+
+.auth-cli-volver {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+    align-self: flex-start;
+}
+.auth-cli-volver:hover { opacity: 1; }
+
+.auth-cli-marca-centro {
+    position: relative;
+    z-index: 2;
+    margin: auto;
+    text-align: center;
+    max-width: 380px;
+}
+
+.auth-cli-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 24px;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--espacio-lg);
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.auth-cli-marca-centro h1 {
+    font-size: 42px;
+    font-weight: 800;
+    margin-bottom: var(--espacio-md);
+    letter-spacing: -1px;
+}
+.auth-cli-marca-centro p {
+    font-size: 17px;
+    opacity: 0.9;
+    line-height: 1.6;
+}
+
+.auth-cli-marca-deco {
+    position: absolute;
+    bottom: -120px;
+    right: -120px;
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+}
+.auth-cli-marca-deco::after {
+    content: '';
+    position: absolute;
+    top: 80px;
+    left: 80px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+}
+
+/* ===== LADO DERECHO: FORMULARIO ===== */
+.auth-cli-form-lado {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: #f7f9fc;
+}
+
+.auth-cli-form-caja {
+    width: 100%;
+    max-width: 410px;
+    animation: authAparecer 0.4s ease;
+}
+@keyframes authAparecer { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+.auth-cli-form-caja h2 {
+    font-size: 28px;
+    color: var(--color-azul);
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+}
+.auth-cli-sub {
+    font-size: 15px;
+    color: var(--color-gris-texto);
+    margin-bottom: var(--espacio-xl);
+}
+.auth-cli-sub strong { color: var(--color-azul); }
+
+.auth-cli-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--espacio-md);
+}
+
+.auth-cli-fila { display: flex; gap: var(--espacio-sm); }
+
+.auth-cli-campo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 2px solid rgba(22,59,115,0.1);
+    border-radius: 14px;
+    padding: 0 16px;
+    transition: all 0.25s ease;
+}
+.auth-cli-campo:focus-within {
+    border-color: var(--color-verde);
+    box-shadow: 0 0 0 4px rgba(39,174,96,0.1);
+}
+.auth-cli-campo svg { color: var(--color-gris-texto); flex-shrink: 0; }
+.auth-cli-campo input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 14px 0;
+    font-size: 15px;
+    color: var(--color-azul);
+    background: transparent;
+    font-family: var(--fuente-principal);
+    min-width: 0;
+}
+
+.auth-cli-campo-codigo input {
+    text-align: center;
+    font-size: 28px;
+    letter-spacing: 10px;
+    font-weight: 700;
+    padding: 16px 0;
+}
+
+.auth-cli-verif-icono {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: rgba(39,174,96,0.12);
+    color: var(--color-verde-oscuro);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--espacio-md);
+}
+
+.auth-cli-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #163b73, #2980b9);
+    color: #fff;
+    padding: 15px;
+    border-radius: 14px;
+    font-size: 15.5px;
+    font-weight: 700;
+    margin-top: var(--espacio-sm);
+    transition: all 0.25s ease;
+}
+.auth-cli-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(22,59,115,0.3); }
+.auth-cli-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.auth-cli-cambiar {
+    text-align: center;
+    margin-top: var(--espacio-lg);
+    font-size: 14.5px;
+    color: var(--color-gris-texto);
+}
+.auth-cli-cambiar button {
+    color: var(--color-verde-oscuro);
+    font-weight: 700;
+    transition: color 0.2s ease;
+}
+.auth-cli-cambiar button:hover { text-decoration: underline; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 860px) {
+    .auth-cli { grid-template-columns: 1fr; }
+    .auth-cli-marca {
+        padding: 24px;
+        min-height: 220px;
+    }
+    .auth-cli-marca-centro h1 { font-size: 32px; }
+    .auth-cli-marca-centro p { font-size: 15px; }
+    .auth-cli-logo { width: 60px; height: 60px; }
+}
+
+@media (max-width: 480px) {
+    .auth-cli-fila { flex-direction: column; gap: var(--espacio-md); }
+    .auth-cli-form-lado { padding: 24px; }
+}
+/* Reglas de contraseña en vivo */
+.auth-cli-reglas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: -4px;
+}
+.auth-cli-regla {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-gris-texto);
+    background: rgba(231,76,60,0.08);
+    padding: 4px 10px;
+    border-radius: 20px;
+    transition: all 0.25s ease;
+}
+.auth-cli-regla svg { flex-shrink: 0; }
+.auth-cli-regla-ok {
+    color: var(--color-verde-oscuro);
+    background: rgba(39,174,96,0.12);
+}
+
+/* Enlace olvidé contraseña */
+.auth-cli-olvido {
+    align-self: flex-end;
+    font-size: 13px;
+    color: var(--color-gris-texto);
+    font-weight: 600;
+    margin-top: -6px;
+    transition: color 0.2s ease;
+}
+.auth-cli-olvido:hover { color: var(--color-verde-oscuro); text-decoration: underline; }
