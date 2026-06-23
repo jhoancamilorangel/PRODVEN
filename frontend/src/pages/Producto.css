@@ -1,0 +1,297 @@
+/* ===================================================
+   DETALLE DE PRODUCTO — Marketplace
+   =================================================== */
+
+.prd {
+    min-height: 100vh;
+    background: #f7f9fc;
+    display: flex;
+    flex-direction: column;
+}
+
+.prd-main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: var(--espacio-lg) 24px var(--espacio-xl);
+    width: 100%;
+    flex: 1;
+}
+
+.prd-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--color-gris-texto);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: var(--espacio-lg);
+    transition: color 0.2s ease;
+}
+.prd-volver:hover { color: var(--color-azul); }
+
+/* ===== DETALLE ===== */
+.prd-detalle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--espacio-xl);
+    background: #fff;
+    border-radius: 24px;
+    padding: var(--espacio-xl);
+    box-shadow: 0 4px 24px rgba(22, 59, 115, 0.06);
+    margin-bottom: var(--espacio-xl);
+}
+
+/* Imagen */
+.prd-imagen {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #f7f9fc;
+}
+.prd-imagen img { width: 100%; height: 100%; object-fit: cover; }
+.prd-imagen-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c5cdd8;
+    background: linear-gradient(135deg, #eef1f5, #f7f9fc);
+}
+.prd-agotado-badge {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: rgba(231,76,60,0.95);
+    color: #fff;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* Info */
+.prd-info { display: flex; flex-direction: column; }
+
+.prd-categoria {
+    display: inline-block;
+    align-self: flex-start;
+    background: rgba(22,59,115,0.06);
+    color: var(--color-azul);
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-transform: capitalize;
+    margin-bottom: var(--espacio-md);
+}
+
+.prd-info h1 {
+    font-size: 30px;
+    color: var(--color-azul);
+    line-height: 1.2;
+    margin-bottom: var(--espacio-sm);
+    letter-spacing: -0.5px;
+}
+
+.prd-rating {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: var(--espacio-md);
+    font-size: 14px;
+    color: var(--color-gris-texto);
+}
+.prd-estrellas { display: inline-flex; gap: 2px; }
+.prd-estrella-llena { color: #f39c12; fill: #f39c12; }
+.prd-estrella-vacia { color: #ddd; }
+
+.prd-precio {
+    font-size: 38px;
+    font-weight: 800;
+    color: var(--color-verde-oscuro);
+    letter-spacing: -1px;
+    margin-bottom: var(--espacio-md);
+}
+
+.prd-descripcion {
+    font-size: 15px;
+    color: var(--color-gris-texto);
+    line-height: 1.6;
+    margin-bottom: var(--espacio-lg);
+}
+
+.prd-stock-info { margin-bottom: var(--espacio-lg); }
+.prd-stock-disponible {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-verde-oscuro);
+    font-size: 14px;
+    font-weight: 600;
+}
+.prd-stock-agotado { color: var(--color-error); font-size: 14px; font-weight: 600; }
+
+/* Compra */
+.prd-compra {
+    display: flex;
+    gap: var(--espacio-md);
+    margin-bottom: var(--espacio-lg);
+}
+
+.prd-cantidad {
+    display: flex;
+    align-items: center;
+    border: 2px solid rgba(22,59,115,0.1);
+    border-radius: 14px;
+    overflow: hidden;
+}
+.prd-cantidad button {
+    width: 44px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-azul);
+    transition: background 0.2s ease;
+}
+.prd-cantidad button:hover { background: var(--color-gris-fondo); }
+.prd-cantidad span {
+    width: 48px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-azul);
+}
+
+.prd-btn-carrito {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #163b73, #2980b9);
+    color: #fff;
+    border-radius: 14px;
+    font-size: 15.5px;
+    font-weight: 700;
+    transition: all 0.25s ease;
+}
+.prd-btn-carrito:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(22,59,115,0.3); }
+.prd-btn-carrito:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.prd-garantias {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: var(--espacio-lg);
+    border-top: 1px solid rgba(22,59,115,0.08);
+}
+.prd-garantia {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--color-gris-texto);
+}
+.prd-garantia svg { color: var(--color-verde); }
+
+/* ===== RESEÑAS ===== */
+.prd-resenas {
+    background: #fff;
+    border-radius: 24px;
+    padding: var(--espacio-xl);
+    box-shadow: 0 4px 24px rgba(22, 59, 115, 0.06);
+}
+.prd-resenas h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 22px;
+    color: var(--color-azul);
+    margin-bottom: var(--espacio-lg);
+}
+.prd-resenas h2 svg { color: var(--color-verde); }
+
+.prd-sin-resenas {
+    padding: 40px;
+    text-align: center;
+    color: var(--color-gris-texto);
+    background: rgba(22,59,115,0.02);
+    border-radius: 16px;
+}
+
+.prd-resenas-lista {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--espacio-lg);
+}
+
+.prd-resena {
+    padding: var(--espacio-lg);
+    background: rgba(22,59,115,0.02);
+    border-radius: 16px;
+    border: 1px solid rgba(22,59,115,0.04);
+}
+.prd-resena-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: var(--espacio-sm);
+}
+.prd-resena-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #163b73, #2980b9);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.prd-resena-nombre { display: block; font-weight: 600; color: var(--color-azul); font-size: 14px; margin-bottom: 2px; }
+.prd-resena-titulo { font-size: 15px; color: var(--color-azul); margin-bottom: 4px; }
+.prd-resena-comentario { font-size: 14px; color: var(--color-gris-texto); line-height: 1.5; }
+
+/* ===== ESTADOS ===== */
+.prd-cargando, .prd-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 20px;
+    color: var(--color-gris-texto);
+    gap: var(--espacio-md);
+    flex: 1;
+}
+.prd-vacio h3 { color: var(--color-azul); font-size: 22px; }
+.prd-btn-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: var(--espacio-sm);
+    background: var(--color-azul);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 14.5px;
+    font-weight: 600;
+}
+.prd-spinner {
+    width: 44px;
+    height: 44px;
+    border: 4px solid rgba(22,59,115,0.1);
+    border-top-color: var(--color-verde);
+    border-radius: 50%;
+    animation: girar 0.8s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+
+@media (max-width: 860px) {
+    .prd-detalle { grid-template-columns: 1fr; gap: var(--espacio-lg); }
+    .prd-info h1 { font-size: 24px; }
+    .prd-precio { font-size: 30px; }
+}

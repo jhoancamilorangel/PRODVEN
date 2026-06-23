@@ -20,6 +20,9 @@ import Marketplace from './pages/marketplace';
 import Tienda from './pages/Tienda';
 import AuthCliente from './pages/AuthCliente';
 import ErrorBoundary from './components/ErrorBoundary';
+import Producto from './pages/Producto';
+import Carrito from './pages/Carrito';
+import InventarioInterno from './pages/InventarioInterno';
 
 function App() {
     return (
@@ -138,6 +141,18 @@ function App() {
   />
   <Route path="/cuenta" element={<AuthCliente />}
    />
+   <Route path="/producto/:idProducto" element={<Producto />} 
+   n/>
+   <Route path="/carrito/:idEmpresa" element={<Carrito />} 
+   />
+   <Route
+    path="/control-inventario"
+    element={
+        <RutaProtegida>
+            <Layout><InventarioInterno /></Layout>
+        </RutaProtegida>
+    }
+/>
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
             </BrowserRouter>
