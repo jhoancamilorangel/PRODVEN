@@ -20,8 +20,6 @@ const logger = require('../../config/logger');
  *  - Iniciar producción (consumir materiales del inventario)
  *  - Completar producción (ingresar producto terminado)
  *  - Cancelar con reversión segura según el estado
- *
- * Conecta BOM, inventario, reservas y movimientos en el flujo productivo.
  */
 
 // =====================================================
@@ -31,14 +29,10 @@ const logger = require('../../config/logger');
 /**
  * Genera un número de orden consecutivo legible por empresa
  * Formato: OP-AÑO-NNNN (ej: OP-2026-0001)
- *
- * @param {string} idEmpresa - Empresa
- * @param {object} transaction - Transacción
- * @returns {Promise<string>} Número de orden generado
  */
 const generarNumeroOrden = async (idEmpresa, transaction) => {
     const anio = new Date().getFullYear();
-    const prefijo = `OP-${anio}-`;
+    const prefijo = `OP-${anio}-;`
 
     const ultimaOrden = await OrdenProduccion.findOne({
         where: {
@@ -67,12 +61,6 @@ const generarNumeroOrden = async (idEmpresa, transaction) => {
 /**
  * Calcula los materiales necesarios para producir una cantidad dada
  * basándose en el BOM activo del producto
- *
- * @param {string} idBom - BOM a usar
- * @param {number} cantidadAProducir - Cuánto se quiere fabricar
- * @param {string} idEmpresa - Empresa
- * @param {object} transaction - Transacción opcional
- * @returns {Promise<Array>} Lista de materiales con cantidades necesarias
  */
 const calcularMaterialesNecesarios = async (idBom, cantidadAProducir, idEmpresa, transaction = null) => {
     const opciones = transaction ? { transaction } : {};
@@ -115,12 +103,6 @@ const calcularMaterialesNecesarios = async (idBom, cantidadAProducir, idEmpresa,
 /**
  * Verifica si hay suficiente stock disponible de todos los materiales
  * necesarios para una orden de producción
- *
- * @param {string} idBom - BOM a verificar
- * @param {number} cantidadAProducir - Cantidad a fabricar
- * @param {string} idEmpresa - Empresa
- * @param {string} idBodega - Bodega de donde se consumirá
- * @returns {Promise<object>} { disponible, materiales, faltantes }
  */
 const verificarDisponibilidadMateriales = async (idBom, cantidadAProducir, idEmpresa, idBodega = null) => {
     const materiales = await calcularMaterialesNecesarios(idBom, cantidadAProducir, idEmpresa);
@@ -179,15 +161,7 @@ const verificarDisponibilidadMateriales = async (idBom, cantidadAProducir, idEmp
 // =====================================================
 
 /**
- * Crea una orden de producción
- *
- * Usa el BOM activo del producto, calcula materiales y costos estimados.
- * La orden nace en estado pendiente sin reservar materiales todavía.
- *
- * @param {object} datos - Datos de la orden
- * @param {string} idEmpresa - Empresa
- * @param {string} idUsuario - Usuario creador
- * @returns {Promise<object>} { exito, orden, mensaje, verificacion }
+ * Crea una orden de producción usando el BOM activo del producto
  */
 const crearOrdenProduccion = async (datos, idEmpresa, idUsuario) => {
     const transaction = await sequelize.transaction();
@@ -292,9 +266,356 @@ const crearOrdenProduccion = async (datos, idEmpresa, idUsuario) => {
     }
 };
 
+// =====================================================
+// INICIAR PRODUCCIÓN (consumir materiales)
+// =====================================================
+
+/**
+ * Inicia una orden de producción consumiendo los materiales del inventario
+ */
+const iniciarProduccion = async (idOrden, idEmpresa, idUsuario) => {
+    const orden = await OrdenProduccion.findOne({
+        where: { idOrden, idEmpresa, eliminado: false }
+    });
+
+    if (!orden) {
+        throw new Error('Orden de producción no encontrada');
+    }
+
+    if (!orden.puedeIniciar()) {
+        throw new Error(`No se puede iniciar una orden en estado: ${orden.estado}`);
+    }
+
+    const verificacion = await verificarDisponibilidadMateriales(
+        orden.idBom,
+        parseFloat(orden.cantidadProducir),
+        idEmpresa,
+        orden.idBodega
+    );
+
+    if (!verificacion.disponible) {
+        return {
+            exito: false,
+            orden,
+            mensaje: 'No hay suficiente stock de materiales para iniciar la producción',
+            faltantes: verificacion.faltantes
+        };
+    }
+
+    const materiales = await calcularMaterialesNecesarios(
+        orden.idBom,
+        parseFloat(orden.cantidadProducir),
+        idEmpresa
+    );
+
+    const consumos = [];
+    let costoMaterialesReal = 0;
+
+    for (const material of materiales) {
+        const stock = await StockProducto.findOne({
+            where: {
+                idProducto: material.idProductoComponente,
+                idBodega: orden.idBodega
+            }
+        });
+
+        const disponible = stock ? stock.cantidadDisponible() : 0;
+
+        if (disponible < material.cantidadNecesaria) {
+            if (material.esOpcional) {
+                continue;
+            }
+            throw new Error(`Stock insuficiente del material ${material.idProductoComponente}`);
+        }
+
+        const resultadoMovimiento = await inventarioService.registrarMovimiento({
+            idEmpresa,
+            idProducto: material.idProductoComponente,
+            idBodega: orden.idBodega,
+            tipo: 'salida_produccion',
+            cantidad: material.cantidadNecesaria,
+            idUsuario,
+            motivo: `Consumo en orden de producción ${orden.numeroOrden}`,
+            referencia: {
+                tipo: 'orden_produccion',
+                id: orden.idOrden
+            }
+        });
+
+        const costoUnitarioReal = parseFloat(resultadoMovimiento.movimiento.costoUnitario);
+        const costoTotalConsumo = Math.round(material.cantidadNecesaria * costoUnitarioReal * 100) / 100;
+        costoMaterialesReal += costoTotalConsumo;
+
+        const consumo = await ConsumoOrden.create({
+            idEmpresa,
+            idOrden: orden.idOrden,
+            idProductoComponente: material.idProductoComponente,
+            idComponenteBom: material.idComponenteBom,
+            cantidadPlanificada: material.cantidadNecesaria,
+            cantidadConsumida: material.cantidadNecesaria,
+            cantidadMermaReal: 0,
+            unidadMedida: material.unidadMedida,
+            costoUnitario: costoUnitarioReal,
+            costoTotal: costoTotalConsumo,
+            idMovimientoInventario: resultadoMovimiento.movimiento.idMovimiento,
+            idBodega: orden.idBodega
+        });
+
+        consumos.push(consumo);
+    }
+
+    costoMaterialesReal = Math.round(costoMaterialesReal * 100) / 100;
+
+    orden.estado = 'en_proceso';
+    orden.fechaInicio = new Date();
+    orden.materialesReservados = true;
+    orden.materialesConsumidos = true;
+    orden.costoMaterialesReal = costoMaterialesReal;
+    orden.recalcularCostos();
+
+    if (idUsuario && !orden.idResponsableProduccion) {
+        orden.idResponsableProduccion = idUsuario;
+    }
+
+    await orden.save();
+
+    logger.info(`Orden ${orden.numeroOrden} iniciada. ${consumos.length} materiales consumidos.`);
+
+    return {
+        exito: true,
+        orden,
+        consumos: consumos.map(c => c.datosCompletos()),
+        mensaje: 'Producción iniciada y materiales consumidos correctamente'
+    };
+};
+
+// =====================================================
+// COMPLETAR PRODUCCIÓN (ingresar producto terminado)
+// =====================================================
+
+/**
+ * Completa una orden de producción ingresando el producto terminado al inventario
+ */
+const completarProduccion = async (datos, idEmpresa, idUsuario) => {
+    const transaction = await sequelize.transaction();
+
+    try {
+        const orden = await OrdenProduccion.findOne({
+            where: { idOrden: datos.idOrden, idEmpresa, eliminado: false },
+            transaction
+        });
+
+        if (!orden) {
+            throw new Error('Orden de producción no encontrada');
+        }
+
+        if (!orden.puedeCompletar()) {
+            throw new Error(`No se puede completar una orden en estado: ${orden.estado}`);
+        }
+
+        const cantidadProducida = parseFloat(datos.cantidadProducida);
+        const cantidadDefectuosa = parseFloat(datos.cantidadDefectuosa) || 0;
+
+        if (cantidadProducida <= 0) {
+            throw new Error('La cantidad producida debe ser mayor a cero');
+        }
+
+        if (cantidadDefectuosa > cantidadProducida) {
+            throw new Error('La cantidad defectuosa no puede ser mayor a la producida');
+        }
+
+        const cantidadBuena = cantidadProducida - cantidadDefectuosa;
+
+        if (datos.mermas && Array.isArray(datos.mermas)) {
+            for (const merma of datos.mermas) {
+                const consumo = await ConsumoOrden.findOne({
+                    where: {
+                        idOrden: orden.idOrden,
+                        idProductoComponente: merma.idProductoComponente
+                    },
+                    transaction
+                });
+
+                if (consumo && parseFloat(merma.cantidadMerma) > 0) {
+                    const cantidadMerma = parseFloat(merma.cantidadMerma);
+
+                    await inventarioService.registrarMovimiento({
+                        idEmpresa,
+                        idProducto: merma.idProductoComponente,
+                        idBodega: orden.idBodega,
+                        tipo: 'salida_merma',
+                        cantidad: cantidadMerma,
+                        idUsuario,
+                        motivo: `Merma real en orden ${orden.numeroOrden}`,
+                        referencia: {
+                            tipo: 'orden_produccion',
+                            id: orden.idOrden
+                        }
+                    });
+
+                    consumo.cantidadMermaReal = cantidadMerma;
+                    consumo.cantidadConsumida = parseFloat(consumo.cantidadConsumida) + cantidadMerma;
+                    consumo.recalcularCosto();
+                    await consumo.save({ transaction });
+                }
+            }
+        }
+
+        if (datos.costoManoObra !== undefined) {
+            orden.costoManoObra = parseFloat(datos.costoManoObra);
+        }
+        if (datos.costoIndirecto !== undefined) {
+            orden.costoIndirecto = parseFloat(datos.costoIndirecto);
+        }
+
+        const consumosActualizados = await ConsumoOrden.findAll({
+            where: { idOrden: orden.idOrden },
+            transaction
+        });
+
+        let costoMaterialesReal = 0;
+        for (const consumo of consumosActualizados) {
+            costoMaterialesReal += parseFloat(consumo.costoTotal);
+        }
+        orden.costoMaterialesReal = Math.round(costoMaterialesReal * 100) / 100;
+
+        orden.cantidadProducida = cantidadProducida;
+        orden.cantidadDefectuosa = cantidadDefectuosa;
+        orden.recalcularCostos();
+
+        const costoUnitarioReal = parseFloat(orden.costoUnitarioReal);
+
+        await transaction.commit();
+
+        if (cantidadBuena > 0) {
+            await inventarioService.registrarMovimiento({
+                idEmpresa,
+                idProducto: orden.idProducto,
+                idBodega: orden.idBodega,
+                tipo: 'entrada_produccion',
+                cantidad: cantidadBuena,
+                costoUnitario: costoUnitarioReal,
+                idUsuario,
+                motivo: `Producto terminado de orden ${orden.numeroOrden}`,
+                referencia: {
+                    tipo: 'orden_produccion',
+                    id: orden.idOrden
+                }
+            });
+        }
+
+        orden.estado = 'completada';
+        orden.fechaFin = new Date();
+        orden.productoIngresado = true;
+        await orden.save();
+
+        logger.info(`Orden ${orden.numeroOrden} completada. ${cantidadBuena} unidades buenas ingresadas al inventario.`);
+
+        return {
+            exito: true,
+            orden: orden.datosCompletos(),
+            mensaje: `Producción completada. ${cantidadBuena} unidades ingresadas al inventario.`
+        };
+    } catch (error) {
+        await transaction.rollback();
+        logger.error(`Error al completar producción: ${error.message}`);
+        throw error;
+    }
+};
+
+// =====================================================
+// CANCELAR ORDEN (reversión segura según estado)
+// =====================================================
+
+/**
+ * Cancela una orden de producción revirtiendo según su estado
+ */
+const cancelarOrden = async (idOrden, motivo, idEmpresa, idUsuario) => {
+    const orden = await OrdenProduccion.findOne({
+        where: { idOrden, idEmpresa, eliminado: false }
+    });
+
+    if (!orden) {
+        throw new Error('Orden de producción no encontrada');
+    }
+
+    if (!orden.puedeCancelar()) {
+        throw new Error(`No se puede cancelar una orden en estado: ${orden.estado}`);
+    }
+
+    if (!motivo || motivo.trim().length < 5) {
+        throw new Error('Debes proporcionar un motivo de cancelación de al menos 5 caracteres');
+    }
+
+    let materialesRevertidos = 0;
+
+    if (orden.materialesConsumidos) {
+        const consumos = await ConsumoOrden.findAll({
+            where: { idOrden: orden.idOrden }
+        });
+
+        for (const consumo of consumos) {
+            const cantidadADevolver = parseFloat(consumo.cantidadConsumida);
+
+            if (cantidadADevolver > 0) {
+                await inventarioService.registrarMovimiento({
+                    idEmpresa,
+                    idProducto: consumo.idProductoComponente,
+                    idBodega: consumo.idBodega || orden.idBodega,
+                    tipo: 'entrada_ajuste',
+                    cantidad: cantidadADevolver,
+                    costoUnitario: parseFloat(consumo.costoUnitario),
+                    idUsuario,
+                    motivo: `Reversión por cancelación de orden ${orden.numeroOrden}`,
+                    referencia: {
+                        tipo: 'orden_produccion',
+                        id: orden.idOrden
+                    }
+                });
+                materialesRevertidos += 1;
+            }
+        }
+    }
+
+    orden.estado = 'cancelada';
+    orden.fechaCancelacion = new Date();
+    orden.motivoCancelacion = motivo;
+    await orden.save();
+
+    logger.info(`Orden ${orden.numeroOrden} cancelada. ${materialesRevertidos} materiales revertidos al inventario.`);
+
+    return {
+        exito: true,
+        orden: orden.datosCompletos(),
+        mensaje: materialesRevertidos > 0
+            ? `Orden cancelada. ${materialesRevertidos} material(es) devuelto(s) al inventario.`
+            : 'Orden cancelada correctamente.'
+    };
+};
+
+// =====================================================
+// CONSULTA DE CONSUMOS
+// =====================================================
+
+/**
+ * Obtiene los consumos de una orden con sus desviaciones
+ */
+const obtenerConsumosOrden = async (idOrden, idEmpresa) => {
+    const consumos = await ConsumoOrden.findAll({
+        where: { idOrden, idEmpresa },
+        order: [['fecha_creacion', 'ASC']]
+    });
+
+    return consumos.map(c => c.datosCompletos());
+};
+
 module.exports = {
     generarNumeroOrden,
     calcularMaterialesNecesarios,
     verificarDisponibilidadMateriales,
-    crearOrdenProduccion
+    crearOrdenProduccion,
+    iniciarProduccion,
+    completarProduccion,
+    cancelarOrden,
+    obtenerConsumosOrden
 };

@@ -8,6 +8,9 @@ require('dotenv').config();
 const sequelize = require('./src/config/database');
 require('./src/config/redis');
 
+// Carga de asociaciones del módulo de inventario interno
+require('./src/models/inventario');
+
 const errorHandler = require('./src/middlewares/errorHandler');
 
 // =====================================================
@@ -21,6 +24,7 @@ const categoriaRoutes = require('./src/routes/categoriaRoutes');
 const proveedorRoutes = require('./src/routes/proveedorRoutes');
 const productoRoutes = require('./src/routes/productoRoutes');
 const inventarioRoutes = require('./src/routes/inventarioRoutes');
+const invRoutes = require('./src/routes/inventario/invRoutes');
 const bodegaRoutes = require('./src/routes/bodegaRoutes');
 const reservaRoutes = require('./src/routes/reservaRoutes');
 const bomRoutes = require('./src/routes/bomRoutes');
@@ -77,6 +81,7 @@ app.use('/api/categorias', categoriaRoutes);
 app.use('/api/proveedores', proveedorRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/inventario', inventarioRoutes);
+app.use('/api/inv', invRoutes);
 app.use('/api/bodegas', bodegaRoutes);
 app.use('/api/reservas', reservaRoutes);
 app.use('/api/bom', bomRoutes);
