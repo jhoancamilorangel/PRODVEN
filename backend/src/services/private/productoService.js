@@ -4,6 +4,7 @@ const Categoria = require('../../models/Categoria');
 const empresaService = require('../shared/empresaService');
 const categoriaService = require('../shared/categoriaService');
 const cloudinaryService = require('./cloudinaryService');
+const inventarioService = require('./inventarioService');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 
@@ -14,10 +15,6 @@ const logger = require('../../config/logger');
 
 /**
  * Genera un SKU único dentro de la empresa
- *
- * @param {string} idEmpresa - ID de la empresa
- * @param {string} skuPropuesto - SKU que propone el usuario (opcional)
- * @returns {Promise<string>} SKU único válido
  */
 const generarSkuUnico = async (idEmpresa, skuPropuesto = null) => {
     if (skuPropuesto) {
@@ -46,13 +43,21 @@ const generarSkuUnico = async (idEmpresa, skuPropuesto = null) => {
 };
 
 /**
- * Crea un producto validando el límite del plan
+ * Crea un producto validando el límite del plan.
+ * Si se indica un stock inicial mayor a cero y el producto gestiona stock,
+ * registra automáticamente una entrada de inventario (entrada_inicial) a la
+ * bodega principal, para que ese stock sea real y vendible desde el carrito.
+ *
+ * El registro de stock va protegido: si el inventario fallara (por ejemplo,
+ * si la empresa no tuviera bodega principal), el producto igual se crea y
+ * solo se registra el inconveniente en el log. La creación nunca se rompe.
  *
  * @param {object} datos - Datos del producto
  * @param {string} idEmpresa - ID de la empresa
+ * @param {string} idUsuario - Usuario que crea (para trazabilidad del movimiento)
  * @returns {Promise<object>} { exito, producto, mensaje }
  */
-const crearProducto = async (datos, idEmpresa) => {
+const crearProducto = async (datos, idEmpresa, idUsuario = null) => {
     const cantidadActual = await Producto.count({
         where: { idEmpresa, eliminado: false }
     });
@@ -70,11 +75,16 @@ const crearProducto = async (datos, idEmpresa) => {
     const sku = await generarSkuUnico(idEmpresa, datos.codigoSku);
     const slug = Producto.generarSlug(datos.nombre);
 
+    // El stock real se maneja por inventario. Creamos el producto en 0 y,
+    // si hay stock inicial, lo cargamos con un movimiento de inventario.
+    const stockInicial = parseInt(datos.cantidadStock, 10) || 0;
+
     const producto = await Producto.create({
         ...datos,
         idEmpresa,
         codigoSku: sku,
-        slug
+        slug,
+        cantidadStock: 0
     });
 
     if (datos.idCategoria) {
@@ -82,6 +92,30 @@ const crearProducto = async (datos, idEmpresa) => {
     }
 
     logger.info(`Producto creado: ${producto.idProducto} (SKU: ${sku}) para empresa ${idEmpresa}`);
+
+    // Registro del stock inicial como entrada de inventario (protegido)
+    if (stockInicial > 0 && producto.gestionaStock) {
+        try {
+            await inventarioService.registrarMovimiento({
+                idEmpresa,
+                idProducto: producto.idProducto,
+                tipo: 'entrada_inicial',
+                cantidad: stockInicial,
+                costoUnitario: parseFloat(datos.precioCosto) || 0,
+                idUsuario,
+                motivo: 'Inventario inicial al crear el producto',
+                referencia: { tipo: 'producto', id: producto.idProducto }
+            });
+
+            // Recargamos el producto para devolver el cantidadStock ya sincronizado
+            await producto.reload();
+
+            logger.info(`Stock inicial de ${stockInicial} registrado para producto ${producto.idProducto}`);
+        } catch (error) {
+            logger.error(`No se pudo registrar el stock inicial del producto ${producto.idProducto}: ${error.message}`);
+            // El producto ya está creado; el stock se podrá cargar luego desde Inventario.
+        }
+    }
 
     return {
         exito: true,
@@ -92,11 +126,6 @@ const crearProducto = async (datos, idEmpresa) => {
 
 /**
  * Elimina un producto y todas sus imágenes de Cloudinary
- * Usa transacción para garantizar consistencia
- *
- * @param {string} idProducto - ID del producto
- * @param {string} idEmpresa - ID de la empresa (validación)
- * @returns {Promise<boolean>} true si se eliminó
  */
 const eliminarProductoCompleto = async (idProducto, idEmpresa) => {
     const transaction = await sequelize.transaction();
@@ -153,12 +182,6 @@ const eliminarProductoCompleto = async (idProducto, idEmpresa) => {
 
 /**
  * Cambia el estado de publicación de un producto en el marketplace
- * Verifica que la empresa tenga acceso al marketplace según su plan
- *
- * @param {string} idProducto - ID del producto
- * @param {string} idEmpresa - ID de la empresa
- * @param {boolean} publicar - true para publicar, false para despublicar
- * @returns {Promise<object>} { exito, producto, mensaje }
  */
 const togglePublicacion = async (idProducto, idEmpresa, publicar) => {
     const producto = await Producto.findOne({
@@ -208,12 +231,10 @@ const togglePublicacion = async (idProducto, idEmpresa, publicar) => {
 };
 
 /**
- * Recalcula y actualiza el stock de un producto
- *
- * @param {string} idProducto - ID del producto
- * @param {number} nuevoStock - Nueva cantidad de stock
- * @param {string} idEmpresa - ID de la empresa (validación)
- * @returns {Promise<Producto>} Producto actualizado
+ * Ajuste directo del campo cantidadStock.
+ * NOTA: el stock real se gestiona por movimientos de inventario
+ * (ver inventarioService). Este método queda para compatibilidad,
+ * pero el flujo recomendado es registrar movimientos de inventario.
  */
 const ajustarStock = async (idProducto, nuevoStock, idEmpresa) => {
     const producto = await Producto.findOne({

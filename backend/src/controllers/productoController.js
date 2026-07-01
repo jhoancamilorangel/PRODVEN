@@ -115,7 +115,7 @@ const obtenerProducto = async (req, res, next) => {
  */
 const crearProducto = async (req, res, next) => {
     try {
-        const resultado = await productoService.crearProducto(req.body, req.tenantId);
+       const resultado = await productoService.crearProducto(req.body, req.tenantId, req.userId);
 
         if (!resultado.exito) {
             return sendResponse(res, 403, false, resultado.mensaje);
@@ -365,7 +365,40 @@ const listarProductosPublicos = async (req, res, next) => {
             order: orden
         });
 
-        const productos = rows.map(p => p.datosPublicos());
+        // Traer la imagen principal de todos estos productos en una sola consulta
+        const idsProductos = rows.map(p => p.idProducto);
+        let mapaImagenes = {};
+
+        if (idsProductos.length > 0) {
+            const imagenes = await ImagenProducto.findAll({
+                where: {
+                    idProducto: { [Op.in]: idsProductos },
+                    eliminado: false
+                },
+                order: [['es_principal', 'DESC'], ['orden_visualizacion', 'ASC']]
+            });
+
+            // Para cada producto, guardar la primera imagen (la principal, por el orden de arriba)
+            for (const img of imagenes) {
+                if (!mapaImagenes[img.idProducto]) {
+                    mapaImagenes[img.idProducto] = {
+                        imagenPrincipal: img.urlMedio || img.urlOriginal,
+                        imagenThumbnail: img.urlThumbnail || img.urlMedio || img.urlOriginal
+                    };
+                }
+            }
+        }
+
+        const productos = rows.map(p => {
+            const datos = p.datosPublicos();
+            const img = mapaImagenes[p.idProducto];
+            datos.imagenPrincipal = img ? img.imagenPrincipal : null;
+            datos.imagenThumbnail = img ? img.imagenThumbnail : null;
+            // Stock real para el marketplace (control de cantidad y aviso de bajo stock)
+            datos.cantidadStock = p.gestionaStock ? p.cantidadStock : null;
+            datos.gestionaStock = p.gestionaStock;
+            return datos;
+        });
 
         return sendResponse(res, 200, true, 'Productos del marketplace', {
             productos,
@@ -376,7 +409,6 @@ const listarProductosPublicos = async (req, res, next) => {
         next(error);
     }
 };
-
 /**
  * GET /api/productos/publicos/:id
  * Obtiene un producto público con sus imágenes (sin autenticación)
@@ -398,11 +430,21 @@ const obtenerProductoPublico = async (req, res, next) => {
 
         const imagenes = await ImagenProducto.findAll({
             where: { idProducto: producto.idProducto, eliminado: false },
-            order: [['orden_visualizacion', 'ASC']]
+            order: [['es_principal', 'DESC'], ['orden_visualizacion', 'ASC']]
         });
 
         const datos = producto.datosPublicos();
+
+        // Array completo de imágenes (para galería)
         datos.imagenes = imagenes.map(img => img.datosPublicos());
+
+        // Imagen principal directa (para que el frontend la lea fácil, igual que en el listado)
+        const principal = imagenes.find(img => img.esPrincipal) || imagenes[0];
+        datos.imagenPrincipal = principal ? (principal.urlOriginal || principal.urlMedio) : null;
+        datos.imagenThumbnail = principal ? (principal.urlThumbnail || principal.urlMedio || principal.urlOriginal) : null;
+        // Stock real para control de cantidad y aviso de bajo stock
+        datos.cantidadStock = producto.gestionaStock ? producto.cantidadStock : null;
+        datos.gestionaStock = producto.gestionaStock;
 
         return sendResponse(res, 200, true, 'Producto', datos);
     } catch (error) {

@@ -23,6 +23,12 @@ router.get(
     carritoController.obtenerCarrito
 );
 
+router.get(
+    '/todos',
+    verificarAutenticacion,
+    carritoController.obtenerTodosLosCarritos
+);
+
 router.post(
     '/items',
     verificarAutenticacion,

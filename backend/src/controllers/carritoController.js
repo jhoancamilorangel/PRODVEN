@@ -150,8 +150,23 @@ const vaciarCarrito = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/carrito/todos
+ * Obtiene todos los carritos activos del cliente (de todas las tiendas)
+ */
+const obtenerTodosLosCarritos = async (req, res, next) => {
+    try {
+        const resultado = await carritoService.obtenerTodosLosCarritos(req.userId);
+        return sendResponse(res, 200, true, 'Carritos obtenidos', resultado);
+    } catch (error) {
+        logger.error(`Error al obtener todos los carritos: ${error.message}`);
+        next(error);
+    }
+};
+
 module.exports = {
     obtenerCarrito,
+    obtenerTodosLosCarritos,
     agregarProducto,
     actualizarCantidad,
     quitarItem,

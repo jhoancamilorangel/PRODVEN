@@ -365,11 +365,102 @@ const vaciarCarrito = async (idUsuario, idEmpresa) => {
     }
 };
 
+/**
+ * Obtiene TODOS los carritos activos del cliente (de todas las empresas),
+ * cada uno con su tienda, sus items y el detalle de cada producto.
+ * Es la base de la vista "Mi Carrito" global tipo marketplace.
+ */
+const obtenerTodosLosCarritos = async (idUsuario) => {
+    const cliente = await resolverCliente(idUsuario);
+
+    const carritos = await Carrito.findAll({
+        where: { idCliente: cliente.idCliente, estado: 'activo' },
+        order: [['fecha_actualizacion', 'DESC']]
+    });
+
+    const Empresa = require('../../models/Empresa');
+    const ImagenProducto = require('../../models/ImagenProducto');
+
+    const resultado = [];
+
+    for (const carrito of carritos) {
+        const items = await ItemCarrito.findAll({
+            where: { idCarrito: carrito.idCarrito },
+            order: [['fecha_creacion', 'ASC']]
+        });
+
+        // Si el carrito quedó sin items, lo saltamos (no mostramos tiendas vacías)
+        if (items.length === 0) {
+            continue;
+        }
+
+        // Datos de la tienda (empresa)
+        let tienda = null;
+        try {
+            const empresa = await Empresa.findByPk(carrito.idEmpresa);
+            if (empresa) {
+                tienda = {
+                    idEmpresa: empresa.idEmpresa,
+                    nombre: empresa.nombre,
+                    logoUrl: empresa.logoUrl || null,
+                    ciudad: empresa.ciudad || null,
+                    categoria: empresa.categoria || null
+                };
+            }
+        } catch (error) {
+            logger.error(`Error al cargar empresa del carrito: ${error.message}`);
+        }
+
+        // Items con la info del producto y su imagen principal
+        const itemsConProducto = [];
+        for (const item of items) {
+            const producto = await Producto.findByPk(item.idProducto);
+
+            let imagen = null;
+            if (producto) {
+                const imgPrincipal = await ImagenProducto.findOne({
+                    where: { idProducto: producto.idProducto, eliminado: false },
+                    order: [['es_principal', 'DESC'], ['orden_visualizacion', 'ASC']]
+                });
+                imagen = imgPrincipal ? (imgPrincipal.urlThumbnail || imgPrincipal.urlMedio || imgPrincipal.urlOriginal) : null;
+            }
+
+            itemsConProducto.push({
+                ...item.datosCompletos(),
+                nombreProducto: producto ? producto.nombre : 'Producto',
+                imagenProducto: imagen,
+                disponible: producto ? (producto.activo && !producto.eliminado) : false
+            });
+        }
+
+        resultado.push({
+            carrito: carrito.datosCompletos(),
+            tienda,
+            items: itemsConProducto
+        });
+    }
+
+    // Totales globales (cuántas tiendas, cuántos items, gran total)
+    const totalTiendas = resultado.length;
+    const totalItems = resultado.reduce((sum, g) => sum + g.items.reduce((s, it) => s + (it.cantidad || 0), 0), 0);
+    const granTotal = resultado.reduce((sum, g) => sum + (g.carrito.total || 0), 0);
+
+    return {
+        carritos: resultado,
+        resumen: {
+            totalTiendas,
+            totalItems,
+            granTotal: Math.round(granTotal * 100) / 100
+        }
+    };
+};
+
 module.exports = {
     resolverCliente,
     obtenerStockDisponible,
     obtenerOCrearCarrito,
     obtenerCarritoCompleto,
+    obtenerTodosLosCarritos,
     agregarProducto,
     actualizarCantidad,
     quitarItem,
