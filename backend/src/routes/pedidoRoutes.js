@@ -24,12 +24,26 @@ router.get(
     pedidoController.misCompras
 );
 
+// Detalle + seguimiento de un pedido del cliente
+router.get(
+    '/mis-compras/:idPedido',
+    verificarAutenticacion,
+    pedidoController.detalleMiCompra
+);
+
 // Crear un pedido desde el carrito
 router.post(
     '/',
     verificarAutenticacion,
     validarCrearPedido,
     pedidoController.crearPedido
+);
+
+// Pagar un pedido (el cliente paga su propio pedido)
+router.post(
+    '/:idPedido/pagar',
+    verificarAutenticacion,
+    pedidoController.pagarPedido
 );
 
 // Listar pedidos de la empresa

@@ -1,6 +1,9 @@
 const pedidoService = require('../services/private/pedidoService');
+const pagoService = require('../services/private/pagoService');
+const Pedido = require('../models/Pedido');
 const { sendResponse } = require('../utils/response');
 const logger = require('../config/logger');
+const carritoService = require('../services/private/carritoService');
 
 /**
  * Resuelve el idEmpresa del contexto de la petición
@@ -116,9 +119,108 @@ const misCompras = async (req, res, next) => {
     }
 };
 
+/**
+ * POST /api/pedidos/:idPedido/pagar
+ * Permite al CLIENTE pagar su propio pedido.
+ * A diferencia de /api/pagos (que usa req.tenantId del negocio), aquí
+ * el idEmpresa se toma del pedido, porque el cliente no tiene empresa.
+ */
+const pagarPedido = async (req, res, next) => {
+    try {
+        const { idPedido } = req.params;
+        const { metodo } = req.body;
+
+        if (!metodo) {
+            return sendResponse(res, 400, false, 'Debes indicar el método de pago');
+        }
+
+        // Buscar el pedido y validar que exista
+        const pedido = await Pedido.findOne({
+            where: { idPedido, eliminado: false }
+        });
+
+        if (!pedido) {
+            return sendResponse(res, 404, false, 'Pedido no encontrado');
+        }
+
+        // Validar que el pedido esté pendiente (no pagar algo ya procesado)
+        if (pedido.estado !== 'pendiente') {
+            return sendResponse(res, 409, false, `Este pedido ya está en estado "${pedido.etiquetaEstado()}" y no se puede pagar de nuevo`);
+        }
+
+        // Crear el pago usando el idEmpresa DEL PEDIDO (no del token)
+        const resultado = await pagoService.crearPago(
+            {
+                tipoPago: 'pedido',
+                idPedido: pedido.idPedido,
+                monto: parseFloat(pedido.total),
+                moneda: 'COP',
+                metodo,
+                descripcion: `Pago del pedido ${pedido.numeroPedido}`,
+                comprador: req.body.comprador || {},
+                tarjeta: req.body.tarjeta || null
+            },
+            pedido.idEmpresa,
+            req.userId
+        );
+
+        if (!resultado.exito) {
+            return sendResponse(res, 402, false, resultado.mensaje, {
+                pago: resultado.pago,
+                resultadoPasarela: resultado.resultadoPasarela
+            });
+        }
+
+        return sendResponse(res, 201, true, resultado.mensaje, {
+            pago: resultado.pago,
+            resultadoPasarela: resultado.resultadoPasarela
+        });
+    } catch (error) {
+        logger.error(`Error al pagar pedido: ${error.message}`);
+        next(error);
+    }
+};
+
+/**
+ * GET /api/pedidos/mis-compras/:idPedido
+ * Detalle + seguimiento de UN pedido del cliente autenticado.
+ * Valida que el pedido sea suyo (por su cliente global).
+ */
+const detalleMiCompra = async (req, res, next) => {
+    try {
+        const { idPedido } = req.params;
+
+        // Resolver el cliente del usuario autenticado
+        const cliente = await carritoService.resolverCliente(req.userId);
+
+        // Buscar el pedido y validar que sea de este cliente
+        const pedido = await Pedido.findOne({
+            where: { idPedido, idCliente: cliente.idCliente, eliminado: false }
+        });
+
+        if (!pedido) {
+            return sendResponse(res, 404, false, 'Pedido no encontrado o no es tuyo');
+        }
+
+        // Reutilizar el servicio que trae detalle + seguimiento, con el idEmpresa del pedido
+        const resultado = await pedidoService.obtenerPedidoCompleto(idPedido, pedido.idEmpresa);
+
+        if (!resultado) {
+            return sendResponse(res, 404, false, 'Pedido no encontrado');
+        }
+
+        return sendResponse(res, 200, true, 'Detalle del pedido', resultado);
+    } catch (error) {
+        logger.error(`Error al obtener detalle de compra: ${error.message}`);
+        next(error);
+    }
+};
+
 module.exports = {
     crearPedido,
     obtenerPedido,
     listarPedidos,
-    misCompras
+    misCompras,
+    detalleMiCompra,
+    pagarPedido
 };
