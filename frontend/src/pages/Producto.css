@@ -295,3 +295,20 @@
     .prd-info h1 { font-size: 24px; }
     .prd-precio { font-size: 30px; }
 }
+
+.prd-stock-bajo {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #b9770e;
+    background: rgba(243, 156, 18, 0.12);
+    padding: 7px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+}
+.prd-tope-aviso {
+    font-size: 13px;
+    color: #b9770e;
+    margin-top: 8px;
+}

@@ -1,29 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import marketplaceService from '../services/marketplaceService';
 import MarketplaceHeader from '../components/marketplace/MarketplaceHeader';
 import MarketplaceFooter from '../components/marketplace/MarketplaceFooter';
 import {
-    ShoppingCart, Minus, Plus, Trash2, ArrowLeft,
-    ArrowRight, Package, ShoppingBag, Store
+    ShoppingCart, Minus, Plus, Trash2, ArrowLeft, ArrowRight,
+    Package, ShoppingBag, Store, MapPin
 } from 'lucide-react';
 import './Carrito.css';
 
 function Carrito() {
-    const { idEmpresa } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
 
-    const [carrito, setCarrito] = useState(null);
-    const [tienda, setTienda] = useState(null);
+    const [grupos, setGrupos] = useState([]);
+    const [resumen, setResumen] = useState({ totalTiendas: 0, totalItems: 0, granTotal: 0 });
     const [cargando, setCargando] = useState(true);
-    const [actualizando, setActualizando] = useState(null); // idItem en proceso
+    const [actualizando, setActualizando] = useState(null);
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_token');
+    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
 
     const cargar = useCallback(async () => {
-        if (!idEmpresa) return;
         if (!estaLogueado()) {
             toast.info('Inicia sesión para ver tu carrito.');
             setTimeout(() => navigate('/cuenta'), 600);
@@ -31,38 +29,29 @@ function Carrito() {
         }
         try {
             setCargando(true);
-            const [resCarrito, resTienda] = await Promise.all([
-                marketplaceService.obtenerCarrito(idEmpresa).catch(() => null),
-                marketplaceService.obtenerTienda(idEmpresa).catch(() => null)
-            ]);
-            if (resCarrito) {
-                setCarrito(resCarrito.data.data || null);
-            }
-            if (resTienda) {
-                setTienda(resTienda.data.data?.empresa || resTienda.data.data || null);
-            }
+            const res = await marketplaceService.obtenerTodosLosCarritos();
+            const data = res.data.data || {};
+            setGrupos(data.carritos || []);
+            setResumen(data.resumen || { totalTiendas: 0, totalItems: 0, granTotal: 0 });
         } catch {
-            setCarrito(null);
+            setGrupos([]);
         } finally {
             setCargando(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [idEmpresa]);
+    }, []);
 
     useEffect(() => { cargar(); }, [cargar]);
 
     const formatoMoneda = (v) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
 
-    // Normaliza los items del carrito (el backend puede devolverlos con distintos nombres)
-    const items = carrito?.items || carrito?.itemsCarrito || [];
-
-    const cambiarCantidad = async (idItem, nuevaCantidad) => {
+    const cambiarCantidad = async (idEmpresa, idItem, nuevaCantidad) => {
         if (nuevaCantidad < 1) return;
         setActualizando(idItem);
         try {
-            const res = await marketplaceService.actualizarCantidad(idEmpresa, idItem, nuevaCantidad);
-            setCarrito(res.data.data || carrito);
+            await marketplaceService.actualizarCantidad(idEmpresa, idItem, nuevaCantidad);
+            await cargar();
         } catch (error) {
             toast.error(error.response?.data?.message || 'No se pudo actualizar la cantidad.');
         } finally {
@@ -70,12 +59,12 @@ function Carrito() {
         }
     };
 
-    const quitar = async (idItem) => {
+    const quitar = async (idEmpresa, idItem) => {
         setActualizando(idItem);
         try {
-            const res = await marketplaceService.quitarDelCarrito(idEmpresa, idItem);
-            setCarrito(res.data.data || { items: [] });
+            await marketplaceService.quitarDelCarrito(idEmpresa, idItem);
             toast.exito('Producto eliminado del carrito.');
+            await cargar();
         } catch (error) {
             toast.error(error.response?.data?.message || 'No se pudo quitar el producto.');
         } finally {
@@ -83,24 +72,15 @@ function Carrito() {
         }
     };
 
-    const vaciar = async () => {
+    const vaciarTienda = async (idEmpresa) => {
         try {
             await marketplaceService.vaciarCarrito(idEmpresa);
-            setCarrito({ items: [] });
-            toast.exito('Carrito vaciado.');
+            toast.exito('Carrito de la tienda vaciado.');
+            await cargar();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'No se pudo vaciar el carrito.');
+            toast.error(error.response?.data?.message || 'No se pudo vaciar.');
         }
     };
-
-    // Cálculo de totales
-    const subtotal = items.reduce((sum, it) => {
-        const precio = it.precioUnitario || it.precio || it.producto?.precioVenta || 0;
-        const cant = it.cantidad || 0;
-        return sum + (precio * cant);
-    }, 0);
-
-    const totalItems = items.reduce((sum, it) => sum + (it.cantidad || 0), 0);
 
     if (cargando) {
         return (
@@ -111,85 +91,126 @@ function Carrito() {
         );
     }
 
+    const vacio = grupos.length === 0;
+
     return (
         <div className="car">
             <MarketplaceHeader />
 
             <main className="car-main">
-                <button className="car-volver" onClick={() => navigate(`/tienda/${idEmpresa}`)}>
+                <button className="car-volver" onClick={() => navigate('/marketplace')}>
                     <ArrowLeft size={18} /> Seguir comprando
                 </button>
 
                 <div className="car-cabecera">
-                    <h1><ShoppingCart size={26} /> Tu carrito</h1>
-                    {tienda && (
-                        <span className="car-tienda-nombre"><Store size={15} /> {tienda.nombre}</span>
+                    <h1><ShoppingCart size={26} /> Mi carrito</h1>
+                    {!vacio && (
+                        <span className="car-resumen-chip">
+                            {resumen.totalItems} producto(s) en {resumen.totalTiendas} tienda(s)
+                        </span>
                     )}
                 </div>
 
-                {items.length === 0 ? (
+                {vacio ? (
                     <div className="car-vacio">
                         <ShoppingBag size={64} strokeWidth={1.2} />
                         <h3>Tu carrito está vacío</h3>
-                        <p>Agrega productos desde la tienda para verlos aquí.</p>
-                        <button className="car-btn-explorar" onClick={() => navigate(`/tienda/${idEmpresa}`)}>
-                            Explorar tienda <ArrowRight size={16} />
+                        <p>Explora las tiendas y agrega productos para verlos aquí.</p>
+                        <button className="car-btn-explorar" onClick={() => navigate('/marketplace')}>
+                            Explorar tiendas <ArrowRight size={16} />
                         </button>
                     </div>
                 ) : (
                     <div className="car-contenido">
-                        {/* Lista de items */}
-                        <div className="car-items">
-                            {items.map((it) => {
-                                const idItem = it.idItem || it.idItemCarrito || it.id;
-                                const nombre = it.nombreProducto || it.producto?.nombre || it.nombre || 'Producto';
-                                const precio = it.precioUnitario || it.precio || it.producto?.precioVenta || 0;
-                                const imagen = it.imagenProducto || it.producto?.imagenPrincipal || it.imagenUrl;
-                                const cant = it.cantidad || 1;
-                                const enProceso = actualizando === idItem;
+                        <div className="car-tiendas">
+                            {grupos.map((grupo) => {
+                                const t = grupo.tienda || {};
+                                const idEmpresa = t.idEmpresa || grupo.carrito?.idEmpresa;
+                                const inicial = (t.nombre || 'T')[0].toUpperCase();
                                 return (
-                                    <div className={`car-item ${enProceso ? 'car-item-procesando' : ''}`} key={idItem}>
-                                        <div className="car-item-img">
-                                            {imagen ? <img src={imagen} alt={nombre} /> : <div className="car-item-placeholder"><Package size={28} /></div>}
+                                    <div className="car-tienda-bloque" key={grupo.carrito.idCarrito}>
+                                        {/* Encabezado de la tienda */}
+                                        <div className="car-tienda-cab">
+                                            <div className="car-tienda-identidad">
+                                                <div className="car-tienda-logo">
+                                                    {t.logoUrl ? <img src={t.logoUrl} alt={t.nombre} /> : inicial}
+                                                </div>
+                                                <div>
+                                                    <h2>{t.nombre || 'Tienda'}</h2>
+                                                    {t.ciudad && <span className="car-tienda-ciudad"><MapPin size={12} /> {t.ciudad}</span>}
+                                                </div>
+                                            </div>
+                                            <button className="car-tienda-visitar" onClick={() => navigate(`/tienda/${idEmpresa}`)}>
+                                                <Store size={14} /> Ver tienda
+                                            </button>
                                         </div>
-                                        <div className="car-item-info">
-                                            <h3>{nombre}</h3>
-                                            <span className="car-item-precio-unit">{formatoMoneda(precio)} c/u</span>
+
+                                        {/* Items de la tienda */}
+                                        <div className="car-items">
+                                            {grupo.items.map((it) => {
+                                                const idItem = it.idItem || it.idItemCarrito || it.id;
+                                                const nombre = it.nombreProducto || 'Producto';
+                                                const precio = it.precioUnitario || it.precio || 0;
+                                                const imagen = it.imagenProducto;
+                                                const cant = it.cantidad || 1;
+                                                const enProceso = actualizando === idItem;
+                                                return (
+                                                    <div className={`car-item ${enProceso ? 'car-item-procesando' : ''}`} key={idItem}>
+                                                        <div className="car-item-img">
+                                                            {imagen ? <img src={imagen} alt={nombre} /> : <div className="car-item-placeholder"><Package size={26} /></div>}
+                                                        </div>
+                                                        <div className="car-item-info">
+                                                            <h3>{nombre}</h3>
+                                                            <span className="car-item-precio-unit">{formatoMoneda(precio)} c/u</span>
+                                                        </div>
+                                                        <div className="car-item-cantidad">
+                                                            <button onClick={() => cambiarCantidad(idEmpresa, idItem, cant - 1)} disabled={enProceso || cant <= 1}><Minus size={15} /></button>
+                                                            <span>{cant}</span>
+                                                            <button onClick={() => cambiarCantidad(idEmpresa, idItem, cant + 1)} disabled={enProceso}><Plus size={15} /></button>
+                                                        </div>
+                                                        <div className="car-item-subtotal">{formatoMoneda(precio * cant)}</div>
+                                                        <button className="car-item-quitar" onClick={() => quitar(idEmpresa, idItem)} disabled={enProceso} title="Quitar">
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                        <div className="car-item-cantidad">
-                                            <button onClick={() => cambiarCantidad(idItem, cant - 1)} disabled={enProceso || cant <= 1}><Minus size={15} /></button>
-                                            <span>{cant}</span>
-                                            <button onClick={() => cambiarCantidad(idItem, cant + 1)} disabled={enProceso}><Plus size={15} /></button>
+
+                                        {/* Pie de la tienda: subtotal y continuar */}
+                                        <div className="car-tienda-pie">
+                                            <button className="car-tienda-vaciar" onClick={() => vaciarTienda(idEmpresa)}>Vaciar esta tienda</button>
+                                            <div className="car-tienda-total">
+                                                <span>Subtotal ({grupo.items.reduce((s, i) => s + (i.cantidad || 0), 0)} productos)</span>
+                                                <strong>{formatoMoneda(grupo.carrito.total)}</strong>
+                                            </div>
+                                            <button className="car-tienda-pagar" onClick={() => navigate(`/checkout/${idEmpresa}`)}>
+                                                Continuar compra <ArrowRight size={18} />
+                                            </button>
                                         </div>
-                                        <div className="car-item-subtotal">{formatoMoneda(precio * cant)}</div>
-                                        <button className="car-item-quitar" onClick={() => quitar(idItem)} disabled={enProceso} title="Quitar">
-                                            <Trash2 size={18} />
-                                        </button>
                                     </div>
                                 );
                             })}
-                            <button className="car-vaciar" onClick={vaciar}>Vaciar carrito</button>
                         </div>
 
-                        {/* Resumen */}
+                        {/* Resumen global */}
                         <aside className="car-resumen">
-                            <h2>Resumen</h2>
+                            <h2>Resumen general</h2>
                             <div className="car-resumen-linea">
-                                <span>Productos ({totalItems})</span>
-                                <span>{formatoMoneda(subtotal)}</span>
+                                <span>Tiendas</span>
+                                <span>{resumen.totalTiendas}</span>
                             </div>
-                            <div className="car-resumen-linea car-resumen-envio">
-                                <span>Envío</span>
-                                <span>Se calcula al pagar</span>
+                            <div className="car-resumen-linea">
+                                <span>Productos</span>
+                                <span>{resumen.totalItems}</span>
                             </div>
                             <div className="car-resumen-total">
-                                <span>Total</span>
-                                <span>{formatoMoneda(subtotal)}</span>
+                                <span>Total general</span>
+                                <span>{formatoMoneda(resumen.granTotal)}</span>
                             </div>
-                            <button className="car-btn-pagar" onClick={() => navigate(`/checkout/${idEmpresa}`)}>
-                                Continuar al pago <ArrowRight size={18} />
-                            </button>
-                            <p className="car-resumen-nota">Los impuestos y el envío se calculan en el siguiente paso.</p>
+                            <p className="car-resumen-nota">
+                                Cada tienda se paga por separado. Usa el botón "Continuar compra" de cada tienda para finalizar su pedido.
+                            </p>
                         </aside>
                     </div>
                 )}

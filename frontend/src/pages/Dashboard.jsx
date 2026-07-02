@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import reporteService from '../services/reporteService';
 import {
     DollarSign, Package, Clock, AlertCircle, TrendingUp,
-    ShoppingBag, Trophy
+    ShoppingBag, Trophy, Boxes, ArrowRight
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -12,6 +13,7 @@ import './Dashboard.css';
  * Muestra los indicadores clave del negocio con datos reales del backend.
  */
 function Dashboard() {
+    const navigate = useNavigate();
     const { usuario } = useAuth();
     const [resumen, setResumen] = useState(null);
     const [productos, setProductos] = useState([]);
@@ -109,6 +111,17 @@ function Dashboard() {
                     );
                 })}
             </div>
+
+            {/* Acceso destacado al Control de Inventario */}
+            <button className="dash-acceso-inventario" onClick={() => navigate('/control-inventario')}>
+                <div className="dai-fondo"></div>
+                <div className="dai-icono"><Boxes size={30} /></div>
+                <div className="dai-texto">
+                    <span className="dai-titulo">Control de Inventario</span>
+                    <span className="dai-sub">Gestiona artículos, bodegas, lotes y movimientos de tu inventario interno</span>
+                </div>
+                <div className="dai-flecha"><ArrowRight size={22} /></div>
+            </button>
 
             {/* Dos columnas */}
             <div className="dash-columnas">

@@ -23,139 +23,45 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Producto from './pages/Producto';
 import Carrito from './pages/Carrito';
 import InventarioInterno from './pages/InventarioInterno';
+import Checkout from './pages/Checkout';
+import MisCompras from './pages/MisCompras';
 
 function App() {
     return (
-       <AuthProvider>
+        <AuthProvider>
             <ErrorBoundary>
-            <BrowserRouter>
-                <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route
-                        path="/dashboard"
-                        element={
-                            <RutaProtegida>
-                                <Layout><Dashboard /></Layout>
-                            </RutaProtegida>
-                        }
-                    />
-                    <Route
-                        path="/productos"
-                        element={
-                            <RutaProtegida>
-                                <Layout><Productos /></Layout>
-                            </RutaProtegida>
-                        }
-                    />
-                    <Route
-    path="/categorias"
-    element={
-        <RutaProtegida>
-            <Layout><Categorias /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/pedidos"
-    element={
-        <RutaProtegida>
-            <Layout><Pedidos /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/inventario"
-    element={
-        <RutaProtegida>
-            <Layout><Inventario /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/produccion"
-    element={
-        <RutaProtegida>
-            <Layout><Produccion /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/logistica"
-    element={
-        <RutaProtegida>
-            <Layout><Logistica /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/pagos"
-    element={
-        <RutaProtegida>
-            <Layout><Pagos /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/engagement"
-    element={
-        <RutaProtegida>
-            <Layout><Engagement /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/reportes"
-    element={
-        <RutaProtegida>
-            <Layout><Reportes /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/auditoria"
-    element={
-        <RutaProtegida>
-            <Layout><Auditoria /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/configuracion"
-    element={
-        <RutaProtegida>
-            <Layout><Configuracion /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route
-    path="/mi-tienda"
-    element={
-        <RutaProtegida>
-            <Layout><MiTienda /></Layout>
-        </RutaProtegida>
-    }
-/>
-<Route path="/marketplace" element={<Marketplace />}
- />
- <Route path="/tienda/:idEmpresa" element={<Tienda />}
-  />
-  <Route path="/cuenta" element={<AuthCliente />}
-   />
-   <Route path="/producto/:idProducto" element={<Producto />} 
-   n/>
-   <Route path="/carrito/:idEmpresa" element={<Carrito />} 
-   />
-   <Route
-    path="/control-inventario"
-    element={
-        <RutaProtegida>
-            <Layout><InventarioInterno /></Layout>
-        </RutaProtegida>
-    }
-/>
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                </Routes>
-            </BrowserRouter>
+                <BrowserRouter>
+                    <Routes>
+                        <Route path="/login" element={<Login />} />
+
+                        {/* ===== RUTAS PÚBLICAS (marketplace, clientes) ===== */}
+                        <Route path="/marketplace" element={<Marketplace />} />
+                        <Route path="/tienda/:idEmpresa" element={<Tienda />} />
+                        <Route path="/cuenta" element={<AuthCliente />} />
+                        <Route path="/producto/:idProducto" element={<Producto />} />
+                        <Route path="/carrito" element={<Carrito />} />
+                        <Route path="/checkout/:idEmpresa" element={<Checkout />} />
+                        <Route path="/mis-compras" element={<MisCompras />} />
+
+                        {/* ===== RUTAS PROTEGIDAS (panel administrativo) ===== */}
+                        <Route path="/dashboard" element={<RutaProtegida><Layout><Dashboard /></Layout></RutaProtegida>} />
+                        <Route path="/productos" element={<RutaProtegida><Layout><Productos /></Layout></RutaProtegida>} />
+                        <Route path="/categorias" element={<RutaProtegida><Layout><Categorias /></Layout></RutaProtegida>} />
+                        <Route path="/pedidos" element={<RutaProtegida><Layout><Pedidos /></Layout></RutaProtegida>} />
+                        <Route path="/inventario" element={<RutaProtegida><Layout><Inventario /></Layout></RutaProtegida>} />
+                        <Route path="/control-inventario" element={<RutaProtegida><Layout><InventarioInterno /></Layout></RutaProtegida>} />
+                        <Route path="/produccion" element={<RutaProtegida><Layout><Produccion /></Layout></RutaProtegida>} />
+                        <Route path="/logistica" element={<RutaProtegida><Layout><Logistica /></Layout></RutaProtegida>} />
+                        <Route path="/pagos" element={<RutaProtegida><Layout><Pagos /></Layout></RutaProtegida>} />
+                        <Route path="/engagement" element={<RutaProtegida><Layout><Engagement /></Layout></RutaProtegida>} />
+                        <Route path="/reportes" element={<RutaProtegida><Layout><Reportes /></Layout></RutaProtegida>} />
+                        <Route path="/auditoria" element={<RutaProtegida><Layout><Auditoria /></Layout></RutaProtegida>} />
+                        <Route path="/configuracion" element={<RutaProtegida><Layout><Configuracion /></Layout></RutaProtegida>} />
+                        <Route path="/mi-tienda" element={<RutaProtegida><Layout><MiTienda /></Layout></RutaProtegida>} />
+
+                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    </Routes>
+                </BrowserRouter>
             </ErrorBoundary>
         </AuthProvider>
     );

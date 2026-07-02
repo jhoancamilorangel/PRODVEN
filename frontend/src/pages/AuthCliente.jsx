@@ -66,9 +66,9 @@ function AuthCliente() {
                 return;
             }
 
-            localStorage.setItem('prodven_token', data.accessToken);
-            localStorage.setItem('prodven_refresh', data.refreshToken);
-            localStorage.setItem('prodven_usuario', JSON.stringify(data.usuario));
+            localStorage.setItem('prodven_cli_token', data.accessToken);
+            localStorage.setItem('prodven_cli_refresh', data.refreshToken);
+            localStorage.setItem('prodven_cli_usuario', JSON.stringify(data.usuario));
 
             toast.exito(`¡Bienvenido, ${data.usuario.nombres}!`);
             setTimeout(() => navigate('/marketplace'), 50);

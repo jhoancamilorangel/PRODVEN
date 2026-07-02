@@ -1,13 +1,15 @@
 /* ===================================================
-   HEADER DEL MARKETPLACE
+   HEADER DEL MARKETPLACE — afinado
    =================================================== */
 
 .mkt-header {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(180%) blur(12px);
     box-shadow: 0 2px 16px rgba(22, 59, 115, 0.07);
+    border-bottom: 1px solid rgba(22, 59, 115, 0.05);
 }
 
 .mkt-header-contenido {
@@ -24,7 +26,9 @@
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
+    transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
+.mkt-logo:hover { transform: translateY(-1px); }
 .mkt-logo-icono {
     width: 42px;
     height: 42px;
@@ -35,6 +39,11 @@
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 12px rgba(22, 59, 115, 0.3);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.mkt-logo:hover .mkt-logo-icono {
+    box-shadow: 0 6px 18px rgba(22, 59, 115, 0.42);
+    transform: rotate(-6deg) scale(1.05);
 }
 .mkt-logo-texto {
     font-size: 22px;
@@ -60,7 +69,8 @@
     background: #fff;
     box-shadow: 0 0 0 4px rgba(39, 174, 96, 0.1);
 }
-.mkt-buscador-icono { color: var(--color-gris-texto); flex-shrink: 0; }
+.mkt-buscador:focus-within .mkt-buscador-icono { color: var(--color-verde); }
+.mkt-buscador-icono { color: var(--color-gris-texto); flex-shrink: 0; transition: color 0.25s ease; }
 .mkt-buscador input {
     flex: 1;
     border: none;
@@ -78,10 +88,11 @@
     border-radius: 10px;
     font-size: 14px;
     font-weight: 600;
-    transition: all 0.25s ease;
+    transition: background 0.25s ease, transform 0.2s ease;
     flex-shrink: 0;
 }
 .mkt-buscador-btn:hover { background: #1e4d94; }
+.mkt-buscador-btn:active { transform: scale(0.96); }
 
 /* Acciones */
 .mkt-header-acciones {
@@ -91,6 +102,7 @@
     flex-shrink: 0;
 }
 .mkt-header-btn {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -99,13 +111,180 @@
     color: var(--color-azul);
     font-size: 14px;
     font-weight: 600;
-    transition: all 0.25s ease;
+    transition: background 0.22s ease, color 0.22s ease, transform 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
-.mkt-header-btn:hover { background: var(--color-gris-fondo); }
-.mkt-header-btn svg { flex-shrink: 0; }
+.mkt-header-btn::after {
+    content: '';
+    position: absolute;
+    left: 16px; right: 16px; bottom: 6px;
+    height: 2px;
+    background: var(--color-verde);
+    border-radius: 2px;
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.25s ease;
+}
+.mkt-header-btn:hover {
+    background: var(--color-gris-fondo);
+    transform: translateY(-2px);
+}
+.mkt-header-btn:hover::after { transform: scaleX(1); }
+.mkt-header-btn:active { transform: translateY(0) scale(0.97); }
+.mkt-header-btn svg { flex-shrink: 0; transition: transform 0.25s ease; }
+.mkt-header-btn:hover svg { transform: scale(1.12); }
 
+/* Badge contador del carrito */
+.mkt-header-carrito { position: relative; }
+.mkt-carrito-badge {
+    position: absolute;
+    top: -2px;
+    left: 20px;
+    background: linear-gradient(135deg, #e74c3c, #ff6155);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 700;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(231, 76, 60, 0.5);
+    animation: mktBadgePop 0.35s cubic-bezier(0.34, 1.7, 0.64, 1);
+}
+@keyframes mktBadgePop {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+}
+
+/* Responsive */
 @media (max-width: 860px) {
     .mkt-header-contenido { flex-wrap: wrap; }
     .mkt-buscador { order: 3; max-width: 100%; width: 100%; }
     .mkt-header-btn-texto { display: none; }
+    .mkt-header-btn { padding: 10px 12px; }
+    .mkt-header-btn::after { display: none; }
+    .mkt-carrito-badge { left: auto; right: -2px; }
+}
+
+/* ===== CUENTA CON AVATAR Y MENÚ ===== */
+.mkt-cuenta { position: relative; }
+
+.mkt-cuenta-btn {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 12px 7px 8px;
+    border-radius: 40px;
+    background: var(--color-gris-fondo);
+    color: var(--color-azul);
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.22s ease, box-shadow 0.22s ease, transform 0.2s ease;
+}
+.mkt-cuenta-btn:hover { background: #e7ecf3; transform: translateY(-1px); }
+.mkt-cuenta-btn-activo { background: #e7ecf3; box-shadow: 0 0 0 3px rgba(22, 59, 115, 0.1); }
+
+.mkt-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #163b73, #2980b9);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(22, 59, 115, 0.3);
+}
+.mkt-cuenta-nombre {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mkt-cuenta-flecha { color: var(--color-gris-texto); transition: transform 0.25s ease; }
+.mkt-cuenta-flecha-abierta { transform: rotate(180deg); }
+
+/* Menú desplegable */
+.mkt-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 250px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(10, 42, 67, 0.16), 0 2px 8px rgba(10, 42, 67, 0.08);
+    border: 1px solid rgba(10, 42, 67, 0.05);
+    padding: 8px;
+    z-index: 200;
+    transform-origin: top right;
+    animation: mktMenuIn 0.22s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+@keyframes mktMenuIn {
+    from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.mkt-menu-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px 14px;
+}
+.mkt-avatar-grande { width: 44px; height: 44px; font-size: 16px; }
+.mkt-menu-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mkt-menu-info strong {
+    font-size: 14px;
+    color: var(--color-azul);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mkt-menu-info span {
+    font-size: 12px;
+    color: var(--color-gris-texto);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mkt-menu-divisor { height: 1px; background: #eef1f5; margin: 4px 8px; }
+.mkt-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    color: #374151;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+    transition: background 0.18s ease, color 0.18s ease, gap 0.18s ease;
+}
+.mkt-menu-item svg { color: var(--color-gris-texto); transition: color 0.18s ease; }
+.mkt-menu-item:hover { background: var(--color-gris-fondo); gap: 13px; }
+.mkt-menu-item:hover svg { color: var(--color-azul); }
+.mkt-menu-item-salir { color: #e74c3c; }
+.mkt-menu-item-salir svg { color: #e74c3c; }
+.mkt-menu-item-salir:hover { background: rgba(231, 76, 60, 0.08); }
+
+/* Botón ingresar (sin sesión) */
+.mkt-header-ingresar {
+    background: var(--color-azul);
+    color: #fff;
+}
+.mkt-header-ingresar:hover { background: #1e4d94; }
+.mkt-header-ingresar svg { color: #fff; }
+
+@media (max-width: 860px) {
+    .mkt-cuenta-nombre { display: none; }
+    .mkt-cuenta-btn { padding: 6px; }
+    .mkt-menu { width: 230px; }
 }

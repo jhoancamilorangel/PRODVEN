@@ -5,8 +5,8 @@ import productoService from '../services/productoService';
 import categoriaService from '../services/categoriaService';
 import Modal from '../components/Modal';
 import {
-    Plus, Search, Pencil, Trash2, Star, Tag, Eye, EyeOff,
-    Package, PackageX
+    Plus, Search, Pencil, Trash2, Star, Eye, EyeOff,
+    Package, PackageX, Image as ImageIcon, Upload, X, Loader, Info
 } from 'lucide-react';
 import './Productos.css';
 
@@ -29,8 +29,14 @@ function Productos() {
     const [editandoId, setEditandoId] = useState(null);
     const [form, setForm] = useState(FORM_VACIO);
     const [guardando, setGuardando] = useState(false);
+    // Stock actual del producto en edición (solo lectura, viene del inventario)
+    const [stockActual, setStockActual] = useState(0);
 
     const [confirmarEliminar, setConfirmarEliminar] = useState(null);
+
+    const [imagenes, setImagenes] = useState([]);
+    const [cargandoImagenes, setCargandoImagenes] = useState(false);
+    const [subiendoImagen, setSubiendoImagen] = useState(false);
 
     const idEmpresa = usuario?.idEmpresa;
 
@@ -65,9 +71,24 @@ function Productos() {
         cargarCategorias();
     }, [idEmpresa]);
 
+    const cargarImagenes = useCallback(async (idProducto) => {
+        if (!idProducto) return;
+        try {
+            setCargandoImagenes(true);
+            const res = await productoService.listarImagenes(idProducto);
+            setImagenes(res.data.data?.imagenes || []);
+        } catch {
+            setImagenes([]);
+        } finally {
+            setCargandoImagenes(false);
+        }
+    }, []);
+
     const abrirCrear = () => {
         setEditandoId(null);
         setForm(FORM_VACIO);
+        setImagenes([]);
+        setStockActual(0);
         setModalAbierto(true);
     };
 
@@ -84,9 +105,12 @@ function Productos() {
             stockMinimo: p.stockMinimo || '',
             idCategoria: p.idCategoria || '',
             disponible: p.disponible ?? true,
-            esFabricado: p. esFabricado ?? false
+            esFabricado: p.esFabricado ?? false
         });
+        setStockActual(p.cantidadStock ?? 0);
+        setImagenes([]);
         setModalAbierto(true);
+        cargarImagenes(p.idProducto);
     };
 
     const cambiarCampo = (campo, valor) => {
@@ -107,24 +131,85 @@ function Productos() {
                 idEmpresa,
                 precioVenta: parseFloat(form.precioVenta),
                 precioCosto: form.precioCosto ? parseFloat(form.precioCosto) : 0,
-                cantidadStock: form.cantidadStock ? parseInt(form.cantidadStock, 10) : 0,
                 stockMinimo: form.stockMinimo ? parseInt(form.stockMinimo, 10) : 0,
                 idCategoria: form.idCategoria || null
             };
 
             if (editandoId) {
+                // Al editar NO mandamos cantidadStock: el stock se gestiona por inventario
+                delete datos.cantidadStock;
                 await productoService.actualizar(editandoId, datos);
                 toast.exito('Producto actualizado correctamente.');
+                setModalAbierto(false);
+                cargarProductos();
             } else {
-                await productoService.crear(datos);
-                toast.exito('Producto creado correctamente.');
+                // Al crear, el stock inicial sí se envía y se registra como entrada de inventario
+                datos.cantidadStock = form.cantidadStock ? parseInt(form.cantidadStock, 10) : 0;
+                const res = await productoService.crear(datos);
+                const nuevo = res.data.data;
+                toast.exito('Producto creado. Ahora puedes agregarle imágenes.');
+                setEditandoId(nuevo.idProducto);
+                setStockActual(nuevo.cantidadStock ?? 0);
+                setImagenes([]);
+                cargarProductos();
             }
-            setModalAbierto(false);
-            cargarProductos();
         } catch (error) {
             toast.error(error.response?.data?.message || 'No se pudo guardar el producto.');
         } finally {
             setGuardando(false);
+        }
+    };
+
+    const subirImagen = async (e) => {
+        const archivo = e.target.files[0];
+        if (!archivo) return;
+        if (!editandoId) {
+            toast.error('Guarda el producto primero para agregarle imágenes.');
+            return;
+        }
+        if (!archivo.type.startsWith('image/')) {
+            toast.error('El archivo debe ser una imagen (JPG, PNG o WEBP).');
+            return;
+        }
+        if (archivo.size > 5 * 1024 * 1024) {
+            toast.error('La imagen no puede pesar más de 5MB.');
+            return;
+        }
+        setSubiendoImagen(true);
+        try {
+            await productoService.subirImagen(editandoId, archivo);
+            toast.exito('Imagen subida.');
+            cargarImagenes(editandoId);
+            cargarProductos();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'No se pudo subir la imagen.');
+        } finally {
+            setSubiendoImagen(false);
+            e.target.value = '';
+        }
+    };
+
+    const eliminarImagen = async (idImagen) => {
+        if (!editandoId) return;
+        try {
+            await productoService.eliminarImagen(editandoId, idImagen);
+            toast.exito('Imagen eliminada.');
+            cargarImagenes(editandoId);
+            cargarProductos();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'No se pudo eliminar la imagen.');
+        }
+    };
+
+    const marcarPrincipal = async (idImagen) => {
+        if (!editandoId) return;
+        try {
+            await productoService.marcarImagenPrincipal(editandoId, idImagen);
+            toast.exito('Imagen principal actualizada.');
+            cargarImagenes(editandoId);
+            cargarProductos();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'No se pudo marcar la principal.');
         }
     };
 
@@ -152,10 +237,10 @@ function Productos() {
     const togglePublicar = async (p) => {
         try {
             await productoService.togglePublicacion(p.idProducto, !p.publicado);
-            toast.exito(p.publicado ? 'Producto despublicado.' : 'Producto publicado.');
+            toast.exito(p.publicado ? 'Producto despublicado.' : 'Producto publicado en el marketplace.');
             cargarProductos();
-        } catch {
-            toast.error('No se pudo cambiar la publicación.');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'No se pudo cambiar la publicación.');
         }
     };
 
@@ -164,7 +249,6 @@ function Productos() {
 
     return (
         <div className="productos">
-            {/* Cabecera */}
             <div className="prod-cabecera">
                 <div>
                     <h1>Productos</h1>
@@ -175,7 +259,6 @@ function Productos() {
                 </button>
             </div>
 
-            {/* Barra de búsqueda */}
             <div className="prod-barra">
                 <div className="prod-buscador">
                     <Search size={18} className="prod-buscador-icono" />
@@ -188,7 +271,6 @@ function Productos() {
                 </div>
             </div>
 
-            {/* Contenido */}
             {cargando ? (
                 <div className="prod-cargando">
                     <div className="prod-spinner"></div>
@@ -224,7 +306,11 @@ function Productos() {
                                     <td>
                                         <div className="prod-nombre-celda">
                                             <div className="prod-mini-icono">
-                                                <Package size={18} />
+                                                {p.imagenPrincipal || p.imagenUrl ? (
+                                                    <img src={p.imagenPrincipal || p.imagenUrl} alt={p.nombre} className="prod-mini-img" />
+                                                ) : (
+                                                    <Package size={18} />
+                                                )}
                                             </div>
                                             <div>
                                                 <span className="prod-nombre">{p.nombre}</span>
@@ -267,7 +353,6 @@ function Productos() {
                 </div>
             )}
 
-            {/* Modal crear/editar */}
             <Modal
                 abierto={modalAbierto}
                 onCerrar={() => setModalAbierto(false)}
@@ -308,10 +393,19 @@ function Productos() {
                     </div>
 
                     <div className="prod-form-fila">
-                        <div className="prod-form-campo">
-                            <label>Stock</label>
-                            <input type="number" value={form.cantidadStock} onChange={(e) => cambiarCampo('cantidadStock', e.target.value)} placeholder="0" min="0" />
-                        </div>
+                        {editandoId ? (
+                            <div className="prod-form-campo">
+                                <label>Stock actual</label>
+                                <input type="number" value={stockActual} readOnly disabled className="prod-input-readonly" />
+                                <span className="prod-campo-nota"><Info size={13} /> El stock se gestiona desde Inventario</span>
+                            </div>
+                        ) : (
+                            <div className="prod-form-campo">
+                                <label>Stock inicial</label>
+                                <input type="number" value={form.cantidadStock} onChange={(e) => cambiarCampo('cantidadStock', e.target.value)} placeholder="0" min="0" />
+                                <span className="prod-campo-nota"><Info size={13} /> Se registrará como entrada de inventario</span>
+                            </div>
+                        )}
                         <div className="prod-form-campo">
                             <label>Stock mínimo</label>
                             <input type="number" value={form.stockMinimo} onChange={(e) => cambiarCampo('stockMinimo', e.target.value)} placeholder="0" min="0" />
@@ -338,8 +432,55 @@ function Productos() {
                         </label>
                     </div>
 
+                    <div className="prod-imagenes-seccion">
+                        <div className="prod-imagenes-cabecera">
+                            <span className="prod-imagenes-titulo"><ImageIcon size={17} /> Imágenes del producto</span>
+                            {editandoId && (
+                                <label className={`prod-subir-btn ${subiendoImagen ? 'cargando' : ''}`}>
+                                    {subiendoImagen ? <Loader size={15} className="prod-girando" /> : <Upload size={15} />}
+                                    {subiendoImagen ? 'Subiendo...' : 'Subir imagen'}
+                                    <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={subirImagen} disabled={subiendoImagen} hidden />
+                                </label>
+                            )}
+                        </div>
+
+                        {!editandoId ? (
+                            <p className="prod-imagenes-aviso">
+                                Guarda el producto primero (botón de abajo) y luego podrás agregarle imágenes.
+                                Recuerda: un producto necesita al menos una imagen para publicarse en el marketplace.
+                            </p>
+                        ) : cargandoImagenes ? (
+                            <p className="prod-imagenes-aviso">Cargando imágenes...</p>
+                        ) : imagenes.length === 0 ? (
+                            <p className="prod-imagenes-aviso">
+                                Este producto aún no tiene imágenes. Sube al menos una para poder publicarlo.
+                            </p>
+                        ) : (
+                            <div className="prod-imagenes-grid">
+                                {imagenes.map((img) => (
+                                    <div className={`prod-imagen-item ${img.esPrincipal ? 'principal' : ''}`} key={img.idImagen}>
+                                        <img src={img.urlThumbnail || img.urlMedio || img.urlOriginal} alt={img.textoAlternativo || 'Producto'} />
+                                        {img.esPrincipal && <span className="prod-imagen-principal-badge"><Star size={11} /> Principal</span>}
+                                        <div className="prod-imagen-acciones">
+                                            {!img.esPrincipal && (
+                                                <button type="button" title="Marcar como principal" onClick={() => marcarPrincipal(img.idImagen)}>
+                                                    <Star size={14} />
+                                                </button>
+                                            )}
+                                            <button type="button" className="prod-imagen-eliminar" title="Eliminar" onClick={() => eliminarImagen(img.idImagen)}>
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="prod-form-acciones">
-                        <button type="button" className="btn-secundario" onClick={() => setModalAbierto(false)}>Cancelar</button>
+                        <button type="button" className="btn-secundario" onClick={() => setModalAbierto(false)}>
+                            {editandoId ? 'Cerrar' : 'Cancelar'}
+                        </button>
                         <button type="submit" className="btn-primario" disabled={guardando}>
                             {guardando ? 'Guardando...' : (editandoId ? 'Guardar cambios' : 'Crear producto')}
                         </button>
@@ -347,7 +488,6 @@ function Productos() {
                 </form>
             </Modal>
 
-            {/* Modal confirmar eliminación */}
             <Modal
                 abierto={!!confirmarEliminar}
                 onCerrar={() => setConfirmarEliminar(null)}

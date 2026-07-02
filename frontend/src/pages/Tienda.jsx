@@ -5,7 +5,7 @@ import MarketplaceHeader from '../components/marketplace/MarketplaceHeader';
 import MarketplaceFooter from '../components/marketplace/MarketplaceFooter';
 import {
     MapPin, Star, ShoppingCart, Search, ArrowLeft,
-    Package, Store, Frown, Phone, Mail
+    Package, Frown, Phone
 } from 'lucide-react';
 import './Tienda.css';
 
@@ -15,19 +15,16 @@ function Tienda() {
 
     const [tienda, setTienda] = useState(null);
     const [productos, setProductos] = useState([]);
-    const [categorias, setCategorias] = useState([]);
     const [cargando, setCargando] = useState(true);
-    const [categoriaSel, setCategoriaSel] = useState('todas');
     const [busqueda, setBusqueda] = useState('');
 
     const cargar = useCallback(async () => {
         if (!idEmpresa) return;
         try {
             setCargando(true);
-            const [resTienda, resProd, resCat] = await Promise.all([
+            const [resTienda, resProd] = await Promise.all([
                 marketplaceService.obtenerTienda(idEmpresa).catch(() => null),
-                marketplaceService.listarProductos(idEmpresa).catch(() => null),
-                marketplaceService.listarCategorias(idEmpresa).catch(() => null)
+                marketplaceService.listarProductos(idEmpresa).catch(() => null)
             ]);
 
             if (resTienda) {
@@ -36,10 +33,6 @@ function Tienda() {
             if (resProd) {
                 const datos = resProd.data.data?.productos || resProd.data.data || [];
                 setProductos(Array.isArray(datos) ? datos : []);
-            }
-            if (resCat) {
-                const datos = resCat.data.data?.categorias || resCat.data.data || [];
-                setCategorias(Array.isArray(datos) ? datos : []);
             }
         } catch {
             setTienda(null);
@@ -50,19 +43,15 @@ function Tienda() {
 
     useEffect(() => { cargar(); }, [cargar]);
 
-    // Colores de marca de la tienda
     const colorPrimario = tienda?.colorPrimario || '#163b73';
     const colorSecundario = tienda?.colorSecundario || '#27AE60';
 
     const formatoMoneda = (v) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
 
-    // Filtrado de productos
-    const productosFiltrados = productos.filter((p) => {
-        const coincideCategoria = categoriaSel === 'todas' || p.idCategoria === categoriaSel;
-        const coincideBusqueda = !busqueda || (p.nombre || '').toLowerCase().includes(busqueda.toLowerCase());
-        return coincideCategoria && coincideBusqueda;
-    });
+    const productosFiltrados = productos.filter((p) =>
+        !busqueda || (p.nombre || '').toLowerCase().includes(busqueda.toLowerCase())
+    );
 
     if (cargando) {
         return (
@@ -125,7 +114,6 @@ function Tienda() {
 
             {/* CONTENIDO */}
             <main className="tnd-main">
-                {/* Buscador + filtros */}
                 <div className="tnd-controles">
                     <div className="tnd-buscador">
                         <Search size={18} />
@@ -138,30 +126,6 @@ function Tienda() {
                     </div>
                 </div>
 
-                {/* Categorías */}
-                {categorias.length > 0 && (
-                    <div className="tnd-categorias">
-                        <button
-                            className={`tnd-categoria ${categoriaSel === 'todas' ? 'activa' : ''}`}
-                            onClick={() => setCategoriaSel('todas')}
-                            style={categoriaSel === 'todas' ? { background: colorPrimario, borderColor: colorPrimario } : {}}
-                        >
-                            Todos
-                        </button>
-                        {categorias.map((c) => (
-                            <button
-                                key={c.idCategoria}
-                                className={`tnd-categoria ${categoriaSel === c.idCategoria ? 'activa' : ''}`}
-                                onClick={() => setCategoriaSel(c.idCategoria)}
-                                style={categoriaSel === c.idCategoria ? { background: colorPrimario, borderColor: colorPrimario } : {}}
-                            >
-                                {c.nombre}
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                {/* Productos */}
                 <div className="tnd-productos-cabecera">
                     <h2>Productos</h2>
                     <span>{productosFiltrados.length} producto(s)</span>
@@ -171,12 +135,12 @@ function Tienda() {
                     <div className="tnd-vacio-productos">
                         <Package size={48} strokeWidth={1.3} />
                         <h3>No hay productos</h3>
-                        <p>{busqueda || categoriaSel !== 'todas' ? 'Prueba con otro filtro o búsqueda.' : 'Esta tienda aún no tiene productos publicados.'}</p>
+                        <p>{busqueda ? 'Prueba con otra búsqueda.' : 'Esta tienda aún no tiene productos publicados.'}</p>
                     </div>
                 ) : (
                     <div className="tnd-grid">
                         {productosFiltrados.map((p) => (
-                            <article className="tnd-producto" key={p.idProducto} onClick={() => navigate(`/producto/${p.idProducto}`)}>
+                            <article className="tnd-producto" key={p.idProducto} onClick={() => navigate(`/producto/${p.idProducto}?tienda=${idEmpresa}`)}>
                                 <div className="tnd-producto-img">
                                     {p.imagenPrincipal || p.imagenUrl ? (
                                         <img src={p.imagenPrincipal || p.imagenUrl} alt={p.nombre} />
@@ -185,19 +149,19 @@ function Tienda() {
                                             <Package size={40} style={{ color: colorPrimario }} />
                                         </div>
                                     )}
-                                    {p.stock <= 0 && <span className="tnd-producto-agotado">Agotado</span>}
+                                    {p.disponible === false && <span className="tnd-producto-agotado">Agotado</span>}
                                 </div>
                                 <div className="tnd-producto-cuerpo">
                                     <h3>{p.nombre}</h3>
                                     {p.descripcionCorta && <p className="tnd-producto-desc">{p.descripcionCorta}</p>}
                                     <div className="tnd-producto-pie">
                                         <span className="tnd-producto-precio" style={{ color: colorPrimario }}>
-                                            {formatoMoneda(p.precioVenta || p.precio)}
+                                            {formatoMoneda(p.precioEfectivo || p.precioVenta)}
                                         </span>
                                         <button
                                             className="tnd-producto-btn"
                                             style={{ background: colorPrimario }}
-                                            onClick={(e) => { e.stopPropagation(); /* agregar al carrito luego */ }}
+                                            onClick={(e) => { e.stopPropagation(); navigate(`/producto/${p.idProducto}?tienda=${idEmpresa}`); }}
                                         >
                                             <ShoppingCart size={16} />
                                         </button>

@@ -3,30 +3,36 @@ import { useToast } from '../context/ToastContext';
 import invInternoService from '../services/invInternoService';
 import {
     X, Package, ArrowDownUp, ClipboardCheck, Download, Pencil,
-    TrendingUp, TrendingDown, ArrowLeft, Calendar, Boxes
+    TrendingUp, TrendingDown, ArrowLeft, Calendar, Boxes, Warehouse,
+    ArrowRightLeft, Layers, Plus, Trash2, AlertTriangle
 } from 'lucide-react';
 import './InventarioArticuloDetalle.css';
 
-const UNIDADES = ['unidad', 'kg', 'gramo', 'litro', 'ml', 'metro', 'cm', 'caja', 'paquete', 'docena', 'saco', 'bulto'];
+const UNIDADES = ['unidad', 'kg', 'gramo', 'litro', 'ml', 'metro', 'cm', 'caja(s)', 'paquete', 'docena', 'saco', 'bulto'];
 
 function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
     const toast = useToast();
 
     const [detalle, setDetalle] = useState(null);
     const [kardex, setKardex] = useState([]);
+    const [bodegas, setBodegas] = useState([]);
+    const [lotes, setLotes] = useState([]);
     const [cargando, setCargando] = useState(true);
+    const [cargandoLotes, setCargandoLotes] = useState(false);
     const [filtroTipo, setFiltroTipo] = useState('todos');
-    const [modal, setModal] = useState(null); // 'movimiento' | 'ajuste' | 'editar'
+    const [modal, setModal] = useState(null); // 'movimiento' | 'ajuste' | 'editar' | 'transferir' | 'lote'
 
     const cargar = useCallback(async () => {
         try {
             setCargando(true);
-            const [resDetalle, resKardex] = await Promise.all([
+            const [resDetalle, resKardex, resBodegas] = await Promise.all([
                 invInternoService.obtenerArticulo(idArticulo),
-                invInternoService.obtenerKardex(idArticulo, { limit: 200 })
+                invInternoService.obtenerKardex(idArticulo, { limit: 200 }),
+                invInternoService.listarBodegas()
             ]);
             setDetalle(resDetalle.data.data || null);
             setKardex(resKardex.data.data?.movimientos || []);
+            setBodegas(resBodegas.data.data?.bodegas || []);
         } catch {
             toast.error('No se pudo cargar el detalle del artículo.');
         } finally {
@@ -35,9 +41,29 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [idArticulo]);
 
+    const cargarLotes = useCallback(async () => {
+        try {
+            setCargandoLotes(true);
+            const res = await invInternoService.listarLotes(idArticulo);
+            setLotes(res.data.data?.lotes || []);
+        } catch {
+            setLotes([]);
+        } finally {
+            setCargandoLotes(false);
+        }
+    }, [idArticulo]);
+
     useEffect(() => { cargar(); }, [cargar]);
 
+    // Cargar lotes solo si el artículo controla lotes
+    useEffect(() => {
+        if (detalle?.articulo?.controlaLotes) {
+            cargarLotes();
+        }
+    }, [detalle, cargarLotes]);
+
     const refrescar = () => { cargar(); if (onCambio) onCambio(); };
+    const refrescarConLotes = () => { cargar(); cargarLotes(); if (onCambio) onCambio(); };
 
     const formatoMoneda = (v) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0);
@@ -52,6 +78,17 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
             hour: '2-digit', minute: '2-digit', hour12: true
         });
     };
+    const formatoFechaCorta = (f) => {
+        if (!f) return '—';
+        const d = new Date(f);
+        if (isNaN(d.getTime())) return '—';
+        return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const nombreBodega = (id) => {
+        const b = bodegas.find(x => x.idBodega === id);
+        return b ? b.nombre : 'Bodega';
+    };
 
     const art = detalle?.articulo;
     const stocks = detalle?.stockPorBodega || [];
@@ -62,19 +99,22 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
     const minimo = art ? parseFloat(art.stockMinimo || 0) : 0;
     const estado = stockTotal <= 0 ? 'agotado' : (minimo > 0 && stockTotal <= minimo ? 'bajo' : 'sano');
 
+    const stocksConCantidad = stocks.filter(st => parseFloat(st.cantidadFisica || 0) > 0);
+
     const esEntrada = (tipo) => ['entrada', 'ajuste_positivo'].includes(tipo);
     const etiquetaTipo = (tipo) => ({
         entrada: 'Entrada', salida: 'Salida',
-        ajuste_positivo: 'Ajuste +', ajuste_negativo: 'Ajuste −'
+        ajuste_positivo: 'Ajuste +', ajuste_negativo: 'Ajuste −',
+        transferencia: 'Transferencia'
     }[tipo] || tipo);
 
     const totalEntradas = kardex.filter(m => esEntrada(m.tipo)).reduce((s, m) => s + parseFloat(m.cantidad || 0), 0);
-    const totalSalidas = kardex.filter(m => !esEntrada(m.tipo)).reduce((s, m) => s + parseFloat(m.cantidad || 0), 0);
+    const totalSalidas = kardex.filter(m => !esEntrada(m.tipo) && m.tipo !== 'transferencia').reduce((s, m) => s + parseFloat(m.cantidad || 0), 0);
 
     const kardexFiltrado = kardex.filter(m => {
         if (filtroTipo === 'todos') return true;
         if (filtroTipo === 'entradas') return esEntrada(m.tipo);
-        if (filtroTipo === 'salidas') return !esEntrada(m.tipo);
+        if (filtroTipo === 'salidas') return !esEntrada(m.tipo) && m.tipo !== 'transferencia';
         return true;
     });
 
@@ -101,6 +141,17 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
         toast.exito('Historial exportado.');
     };
 
+    const eliminarLote = async (lote) => {
+        if (!window.confirm(`¿Eliminar el lote "${lote.numeroLote}"? El stock ya registrado no se modifica.`)) return;
+        try {
+            await invInternoService.eliminarLote(lote.idLote);
+            toast.exito('Lote eliminado.');
+            cargarLotes();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'No se pudo eliminar el lote.');
+        }
+    };
+
     if (cargando) {
         return (
             <div className="iad">
@@ -120,7 +171,6 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
 
     return (
         <div className="iad">
-            {/* CABECERA */}
             <button className="iad-volver" onClick={onVolver}>
                 <ArrowLeft size={18} /> Volver a artículos
             </button>
@@ -142,7 +192,6 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
                 </span>
             </div>
 
-            {/* TARJETAS DE ESTADO */}
             <div className="iad-tarjetas">
                 <div className="iad-tarjeta">
                     <span className="iad-tarjeta-label">Stock físico</span>
@@ -165,6 +214,90 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
                     <span className="iad-tarjeta-num">{formatoNumero(minimo)}</span>
                 </div>
             </div>
+
+            {/* STOCK POR BODEGA */}
+            <div className="iad-bodegas">
+                <div className="iad-bodegas-cab">
+                    <h2><Warehouse size={18} /> Stock por bodega</h2>
+                    {stockTotal > 0 && bodegas.length > 1 && (
+                        <button className="iad-boton-transferir" onClick={() => setModal('transferir')}>
+                            <ArrowRightLeft size={16} /> Transferir
+                        </button>
+                    )}
+                </div>
+                {stocksConCantidad.length === 0 ? (
+                    <p className="iad-bodegas-vacio">Este artículo no tiene stock en ninguna bodega todavía.</p>
+                ) : (
+                    <div className="iad-bodegas-lista">
+                        {stocksConCantidad.map((st) => (
+                            <div className="iad-bodega-item" key={st.idStock}>
+                                <div className="iad-bodega-info">
+                                    <span className="iad-bodega-icono"><Warehouse size={15} /></span>
+                                    <span className="iad-bodega-nombre">{nombreBodega(st.idBodega)}</span>
+                                </div>
+                                <div className="iad-bodega-datos">
+                                    <span className="iad-bodega-cant">{formatoNumero(st.cantidadFisica)} {art.unidadMedida}</span>
+                                    <span className="iad-bodega-valor">{formatoMoneda(st.valorTotal)}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* LOTES Y VENCIMIENTOS (solo si el artículo controla lotes) */}
+            {art.controlaLotes && (
+                <div className="iad-lotes">
+                    <div className="iad-lotes-cab">
+                        <h2><Layers size={18} /> Lotes y vencimientos</h2>
+                        <button className="iad-boton-lote" onClick={() => setModal('lote')}>
+                            <Plus size={16} /> Nuevo lote
+                        </button>
+                    </div>
+                    {cargandoLotes ? (
+                        <div className="iad-lotes-cargando"><div className="ii-spinner"></div></div>
+                    ) : lotes.length === 0 ? (
+                        <p className="iad-lotes-vacio">Aún no hay lotes registrados. Crea uno para controlar las fechas de vencimiento.</p>
+                    ) : (
+                        <div className="iad-lotes-lista">
+                            {lotes.map((lote) => (
+                                <div className={`iad-lote iad-lote-${lote.estadoVencimiento}`} key={lote.idLote}>
+                                    <div className="iad-lote-semaforo"></div>
+                                    <div className="iad-lote-cuerpo">
+                                        <div className="iad-lote-l1">
+                                            <span className="iad-lote-numero">Lote {lote.numeroLote}</span>
+                                            <span className="iad-lote-cantidad">{formatoNumero(lote.cantidadActual)} {art.unidadMedida}</span>
+                                        </div>
+                                        <div className="iad-lote-l2">
+                                            <span className="iad-lote-bodega"><Warehouse size={12} /> {lote.nombreBodega}</span>
+                                            <span className="iad-lote-venc">
+                                                <Calendar size={12} /> Vence: {formatoFechaCorta(lote.fechaVencimiento)}
+                                            </span>
+                                        </div>
+                                        <div className="iad-lote-estado">
+                                            {lote.estadoVencimiento === 'vencido' && (
+                                                <span className="iad-lote-tag vencido"><AlertTriangle size={12} /> Vencido hace {Math.abs(lote.diasParaVencer)} día(s)</span>
+                                            )}
+                                            {lote.estadoVencimiento === 'por_vencer' && (
+                                                <span className="iad-lote-tag por-vencer"><AlertTriangle size={12} /> Vence en {lote.diasParaVencer} día(s)</span>
+                                            )}
+                                            {lote.estadoVencimiento === 'vigente' && (
+                                                <span className="iad-lote-tag vigente">Vigente ({lote.diasParaVencer} días)</span>
+                                            )}
+                                            {lote.estadoVencimiento === 'sin_fecha' && (
+                                                <span className="iad-lote-tag sin-fecha">Sin fecha de vencimiento</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button className="iad-lote-eliminar" title="Eliminar lote" onClick={() => eliminarLote(lote)}>
+                                        <Trash2 size={15} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* BOTONES DE ACCIÓN */}
             <div className="iad-botones">
@@ -224,10 +357,11 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
                     <div className="iad-timeline">
                         {kardexFiltrado.map((m) => {
                             const entrada = esEntrada(m.tipo);
+                            const esTransfer = m.tipo === 'transferencia';
                             return (
                                 <div className="iad-mov" key={m.idMovimiento}>
-                                    <div className={`iad-mov-icono ${entrada ? 'entrada' : 'salida'}`}>
-                                        {entrada ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                                    <div className={`iad-mov-icono ${esTransfer ? 'transfer' : entrada ? 'entrada' : 'salida'}`}>
+                                        {esTransfer ? <ArrowRightLeft size={18} /> : entrada ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
                                     </div>
                                     <div className="iad-mov-cuerpo">
                                         <div className="iad-mov-l1">
@@ -258,13 +392,18 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
             {modal === 'movimiento' && (
                 <ModalMovimientoDetalle
                     articulo={{ idArticulo: art.idArticulo, nombre: art.nombre, unidadMedida: art.unidadMedida, cantidadFisica: stockTotal }}
+                    bodegas={bodegas}
                     onCerrar={() => setModal(null)}
                     onRegistrado={() => { setModal(null); refrescar(); toast.exito('Movimiento registrado.'); }}
                 />
             )}
             {modal === 'ajuste' && (
                 <ModalAjuste
-                    articulo={{ idArticulo: art.idArticulo, nombre: art.nombre, unidadMedida: art.unidadMedida, cantidadFisica: stockTotal }}
+                    articulo={{ idArticulo: art.idArticulo, nombre: art.nombre, unidadMedida: art.unidadMedida }}
+                    stocks={stocks}
+                    bodegas={bodegas}
+                    nombreBodega={nombreBodega}
+                    formatoNumero={formatoNumero}
                     onCerrar={() => setModal(null)}
                     onAjustado={() => { setModal(null); refrescar(); toast.exito('Ajuste realizado.'); }}
                 />
@@ -276,25 +415,54 @@ function InventarioArticuloDetalle({ idArticulo, onVolver, onCambio }) {
                     onGuardado={() => { setModal(null); refrescar(); toast.exito('Artículo actualizado.'); }}
                 />
             )}
+            {modal === 'transferir' && (
+                <ModalTransferir
+                    articulo={art}
+                    stocks={stocksConCantidad}
+                    bodegas={bodegas}
+                    nombreBodega={nombreBodega}
+                    formatoNumero={formatoNumero}
+                    onCerrar={() => setModal(null)}
+                    onTransferido={() => { setModal(null); refrescar(); toast.exito('Transferencia realizada.'); }}
+                />
+            )}
+            {modal === 'lote' && (
+                <ModalLote
+                    articulo={art}
+                    bodegas={bodegas}
+                    onCerrar={() => setModal(null)}
+                    onCreado={() => { setModal(null); refrescarConLotes(); toast.exito('Lote creado.'); }}
+                />
+            )}
         </div>
     );
 }
 
-// ===== MODAL: MOVIMIENTO =====
-function ModalMovimientoDetalle({ articulo, onCerrar, onRegistrado }) {
+// ===== MODAL: MOVIMIENTO (con selector de bodega) =====
+function ModalMovimientoDetalle({ articulo, bodegas, onCerrar, onRegistrado }) {
     const toast = useToast();
     const [guardando, setGuardando] = useState(false);
     const [tipo, setTipo] = useState('entrada');
-    const [form, setForm] = useState({ cantidad: '', costoUnitario: '', motivo: '' });
+    const [form, setForm] = useState({ cantidad: '', costoUnitario: '', motivo: '', idBodega: '' });
     const setCampo = (c, v) => setForm((p) => ({ ...p, [c]: v }));
+
+    useEffect(() => {
+        if (bodegas.length > 0 && !form.idBodega) {
+            const principal = bodegas.find(b => b.esPrincipal) || bodegas[0];
+            setForm((p) => ({ ...p, idBodega: principal.idBodega }));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bodegas]);
 
     const guardar = async (e) => {
         e.preventDefault();
         if (!form.cantidad || parseFloat(form.cantidad) <= 0) { toast.error('Ingresa una cantidad mayor a cero.'); return; }
+        if (!form.idBodega) { toast.error('Selecciona una bodega.'); return; }
         setGuardando(true);
         try {
             const datos = {
                 idArticulo: articulo.idArticulo, tipo,
+                idBodega: form.idBodega,
                 cantidad: parseFloat(form.cantidad),
                 motivo: form.motivo.trim() || (tipo === 'entrada' ? 'Entrada de mercancía' : 'Salida / consumo')
             };
@@ -317,13 +485,21 @@ function ModalMovimientoDetalle({ articulo, onCerrar, onRegistrado }) {
                     <Package size={18} />
                     <div>
                         <span className="ii-mov-nombre">{articulo.nombre}</span>
-                        <span className="ii-mov-stock">Stock actual: {articulo.cantidadFisica} {articulo.unidadMedida}</span>
+                        <span className="ii-mov-stock">Stock total: {articulo.cantidadFisica} {articulo.unidadMedida}</span>
                     </div>
                 </div>
                 <form onSubmit={guardar} className="ii-modal-form">
                     <div className="ii-tipo-selector">
                         <button type="button" className={`ii-tipo-btn ii-tipo-entrada ${tipo === 'entrada' ? 'activo' : ''}`} onClick={() => setTipo('entrada')}>Entrada (llegó)</button>
                         <button type="button" className={`ii-tipo-btn ii-tipo-salida ${tipo === 'salida' ? 'activo' : ''}`} onClick={() => setTipo('salida')}>Salida (se gastó)</button>
+                    </div>
+                    <div className="ii-campo">
+                        <label>Bodega *</label>
+                        <select value={form.idBodega} onChange={(e) => setCampo('idBodega', e.target.value)}>
+                            {bodegas.map((b) => (
+                                <option key={b.idBodega} value={b.idBodega}>{b.nombre}{b.esPrincipal ? ' (principal)' : ''}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="ii-campo">
                         <label>Cantidad *</label>
@@ -351,21 +527,35 @@ function ModalMovimientoDetalle({ articulo, onCerrar, onRegistrado }) {
     );
 }
 
-// ===== MODAL: AJUSTE POR CONTEO =====
-function ModalAjuste({ articulo, onCerrar, onAjustado }) {
+// ===== MODAL: AJUSTE POR CONTEO (con selector de bodega) =====
+function ModalAjuste({ articulo, stocks, bodegas, nombreBodega, formatoNumero, onCerrar, onAjustado }) {
     const toast = useToast();
     const [guardando, setGuardando] = useState(false);
-    const [form, setForm] = useState({ cantidadReal: '', motivo: '' });
+    const [form, setForm] = useState({ cantidadReal: '', motivo: '', idBodega: '' });
     const setCampo = (c, v) => setForm((p) => ({ ...p, [c]: v }));
-    const diferencia = form.cantidadReal !== '' ? parseFloat(form.cantidadReal) - parseFloat(articulo.cantidadFisica) : null;
+
+    useEffect(() => {
+        if (bodegas.length > 0 && !form.idBodega) {
+            const principal = bodegas.find(b => b.esPrincipal) || bodegas[0];
+            setForm((p) => ({ ...p, idBodega: principal.idBodega }));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bodegas]);
+
+    // Stock actual en la bodega elegida
+    const stockBodega = stocks.find(st => st.idBodega === form.idBodega);
+    const cantidadSistema = stockBodega ? parseFloat(stockBodega.cantidadFisica || 0) : 0;
+    const diferencia = form.cantidadReal !== '' ? parseFloat(form.cantidadReal) - cantidadSistema : null;
 
     const guardar = async (e) => {
         e.preventDefault();
         if (form.cantidadReal === '' || parseFloat(form.cantidadReal) < 0) { toast.error('Ingresa la cantidad real contada.'); return; }
+        if (!form.idBodega) { toast.error('Selecciona una bodega.'); return; }
         setGuardando(true);
         try {
             await invInternoService.ajustarPorConteo({
                 idArticulo: articulo.idArticulo,
+                idBodega: form.idBodega,
                 cantidadReal: parseFloat(form.cantidadReal),
                 motivo: form.motivo.trim() || 'Ajuste por conteo físico'
             });
@@ -386,10 +576,20 @@ function ModalAjuste({ articulo, onCerrar, onAjustado }) {
                     <ClipboardCheck size={18} />
                     <div>
                         <span className="ii-mov-nombre">{articulo.nombre}</span>
-                        <span className="ii-mov-stock">Sistema dice: {articulo.cantidadFisica} {articulo.unidadMedida}</span>
+                        <span className="ii-mov-stock">
+                            {form.idBodega ? `${nombreBodega(form.idBodega)}: ${formatoNumero(cantidadSistema)} ${articulo.unidadMedida}` : 'Elige una bodega'}
+                        </span>
                     </div>
                 </div>
                 <form onSubmit={guardar} className="ii-modal-form">
+                    <div className="ii-campo">
+                        <label>Bodega *</label>
+                        <select value={form.idBodega} onChange={(e) => setCampo('idBodega', e.target.value)}>
+                            {bodegas.map((b) => (
+                                <option key={b.idBodega} value={b.idBodega}>{b.nombre}{b.esPrincipal ? ' (principal)' : ''}</option>
+                            ))}
+                        </select>
+                    </div>
                     <div className="ii-campo">
                         <label>Cantidad real contada *</label>
                         <input type="number" min="0" step="0.001" placeholder="¿Cuánto hay en realidad?" value={form.cantidadReal} onChange={(e) => setCampo('cantidadReal', e.target.value)} autoFocus />
@@ -424,7 +624,9 @@ function ModalEditar({ articulo, onCerrar, onGuardado }) {
         nombre: articulo.nombre || '',
         unidadMedida: articulo.unidadMedida || 'unidad',
         stockMinimo: articulo.stockMinimo ?? '',
-        codigoBarras: articulo.codigoBarras || ''
+        puntoReorden: articulo.puntoReorden ?? '',
+        codigoBarras: articulo.codigoBarras || '',
+        controlaLotes: articulo.controlaLotes || false
     });
     const setCampo = (c, v) => setForm((p) => ({ ...p, [c]: v }));
 
@@ -437,7 +639,9 @@ function ModalEditar({ articulo, onCerrar, onGuardado }) {
                 nombre: form.nombre.trim(),
                 unidadMedida: form.unidadMedida,
                 stockMinimo: form.stockMinimo === '' ? 0 : parseFloat(form.stockMinimo),
-                codigoBarras: form.codigoBarras.trim() || null
+                puntoReorden: form.puntoReorden === '' ? null : parseFloat(form.puntoReorden),
+                codigoBarras: form.codigoBarras.trim() || null,
+                controlaLotes: form.controlaLotes
             });
             onGuardado();
         } catch (error) {
@@ -469,15 +673,225 @@ function ModalEditar({ articulo, onCerrar, onGuardado }) {
                             <input type="number" min="0" step="0.001" value={form.stockMinimo} onChange={(e) => setCampo('stockMinimo', e.target.value)} />
                         </div>
                     </div>
-                    <div className="ii-campo">
-                        <label>Código de barras <span className="ii-opcional">(opcional)</span></label>
-                        <input type="text" value={form.codigoBarras} onChange={(e) => setCampo('codigoBarras', e.target.value)} />
+                    <div className="ii-campo-fila">
+                        <div className="ii-campo">
+                            <label>Punto de reorden <span className="ii-opcional">(opcional)</span></label>
+                            <input type="number" min="0" step="0.001" value={form.puntoReorden} onChange={(e) => setCampo('puntoReorden', e.target.value)} />
+                        </div>
+                        <div className="ii-campo">
+                            <label>Código de barras <span className="ii-opcional">(opcional)</span></label>
+                            <input type="text" value={form.codigoBarras} onChange={(e) => setCampo('codigoBarras', e.target.value)} />
+                        </div>
                     </div>
+                    <label className="ii-switch-campo">
+                        <input type="checkbox" checked={form.controlaLotes} onChange={(e) => setCampo('controlaLotes', e.target.checked)} />
+                        <span className="ii-switch-texto">
+                            <strong>Maneja lotes y vencimientos</strong>
+                            <small>Para alimentos, medicinas o productos perecederos</small>
+                        </span>
+                    </label>
                     <p className="iad-nota">El stock y el costo no se editan aquí; cambian mediante movimientos y ajustes, para mantener la trazabilidad.</p>
                     <div className="ii-modal-acciones">
                         <button type="button" className="ii-btn-cancelar" onClick={onCerrar}>Cancelar</button>
                         <button type="submit" className="ii-btn-primario" disabled={guardando}>
                             {guardando ? 'Guardando...' : 'Guardar cambios'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// ===== MODAL: TRANSFERIR ENTRE BODEGAS =====
+function ModalTransferir({ articulo, stocks, bodegas, nombreBodega, formatoNumero, onCerrar, onTransferido }) {
+    const toast = useToast();
+    const [guardando, setGuardando] = useState(false);
+    const [form, setForm] = useState({ idBodegaOrigen: '', idBodegaDestino: '', cantidad: '', motivo: '' });
+    const setCampo = (c, v) => setForm((p) => ({ ...p, [c]: v }));
+
+    const bodegasOrigen = stocks.map(st => ({
+        idBodega: st.idBodega,
+        nombre: nombreBodega(st.idBodega),
+        disponible: parseFloat(st.cantidadFisica || 0)
+    }));
+
+    const bodegasDestino = bodegas.filter(b => b.idBodega !== form.idBodegaOrigen);
+
+    const stockOrigen = bodegasOrigen.find(b => b.idBodega === form.idBodegaOrigen);
+    const maxDisponible = stockOrigen ? stockOrigen.disponible : 0;
+
+    const guardar = async (e) => {
+        e.preventDefault();
+        if (!form.idBodegaOrigen) { toast.error('Selecciona la bodega de origen.'); return; }
+        if (!form.idBodegaDestino) { toast.error('Selecciona la bodega de destino.'); return; }
+        if (form.idBodegaOrigen === form.idBodegaDestino) { toast.error('Origen y destino no pueden ser la misma bodega.'); return; }
+        if (!form.cantidad || parseFloat(form.cantidad) <= 0) { toast.error('Ingresa una cantidad mayor a cero.'); return; }
+        if (parseFloat(form.cantidad) > maxDisponible) { toast.error(`Solo hay ${maxDisponible} disponibles en la bodega de origen.`); return; }
+        setGuardando(true);
+        try {
+            await invInternoService.transferir({
+                idArticulo: articulo.idArticulo,
+                idBodegaOrigen: form.idBodegaOrigen,
+                idBodegaDestino: form.idBodegaDestino,
+                cantidad: parseFloat(form.cantidad),
+                motivo: form.motivo.trim() || null
+            });
+            onTransferido();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'No se pudo realizar la transferencia.');
+        } finally { setGuardando(false); }
+    };
+
+    return (
+        <div className="ii-modal-fondo" onClick={onCerrar}>
+            <div className="ii-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="ii-modal-cabecera">
+                    <h2>Transferir entre bodegas</h2>
+                    <button className="ii-modal-cerrar" onClick={onCerrar}><X size={20} /></button>
+                </div>
+                <div className="ii-mov-articulo">
+                    <ArrowRightLeft size={18} />
+                    <div>
+                        <span className="ii-mov-nombre">{articulo.nombre}</span>
+                        <span className="ii-mov-stock">Mueve stock de una bodega a otra</span>
+                    </div>
+                </div>
+                <form onSubmit={guardar} className="ii-modal-form">
+                    <div className="ii-campo">
+                        <label>Bodega de origen *</label>
+                        <select value={form.idBodegaOrigen} onChange={(e) => { setCampo('idBodegaOrigen', e.target.value); setCampo('idBodegaDestino', ''); }} autoFocus>
+                            <option value="">Selecciona...</option>
+                            {bodegasOrigen.map((b) => (
+                                <option key={b.idBodega} value={b.idBodega}>{b.nombre} ({formatoNumero(b.disponible)} {articulo.unidadMedida})</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="ii-campo">
+                        <label>Bodega de destino *</label>
+                        <select value={form.idBodegaDestino} onChange={(e) => setCampo('idBodegaDestino', e.target.value)} disabled={!form.idBodegaOrigen}>
+                            <option value="">Selecciona...</option>
+                            {bodegasDestino.map((b) => (
+                                <option key={b.idBodega} value={b.idBodega}>{b.nombre}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="ii-campo">
+                        <label>Cantidad a transferir * {stockOrigen && <span className="ii-opcional">(máx. {formatoNumero(maxDisponible)})</span>}</label>
+                        <input type="number" min="0" step="0.001" placeholder="0" value={form.cantidad} onChange={(e) => setCampo('cantidad', e.target.value)} />
+                    </div>
+                    <div className="ii-campo">
+                        <label>Motivo <span className="ii-opcional">(opcional)</span></label>
+                        <input type="text" placeholder="Ej: Reabastecer bodega norte" value={form.motivo} onChange={(e) => setCampo('motivo', e.target.value)} />
+                    </div>
+                    <div className="ii-modal-acciones">
+                        <button type="button" className="ii-btn-cancelar" onClick={onCerrar}>Cancelar</button>
+                        <button type="submit" className="ii-btn-primario" disabled={guardando}>
+                            {guardando ? 'Transfiriendo...' : 'Transferir'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// ===== MODAL: NUEVO LOTE =====
+function ModalLote({ articulo, bodegas, onCerrar, onCreado }) {
+    const toast = useToast();
+    const [guardando, setGuardando] = useState(false);
+    const [form, setForm] = useState({
+        numeroLote: '', idBodega: '', cantidad: '', costoUnitario: '',
+        fechaFabricacion: '', fechaVencimiento: ''
+    });
+    const setCampo = (c, v) => setForm((p) => ({ ...p, [c]: v }));
+
+    useEffect(() => {
+        if (bodegas.length > 0 && !form.idBodega) {
+            const principal = bodegas.find(b => b.esPrincipal) || bodegas[0];
+            setForm((p) => ({ ...p, idBodega: principal.idBodega }));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bodegas]);
+
+    const guardar = async (e) => {
+        e.preventDefault();
+        if (!form.numeroLote.trim()) { toast.error('El número de lote es obligatorio.'); return; }
+        if (!form.idBodega) { toast.error('Selecciona una bodega.'); return; }
+        if (form.fechaFabricacion && form.fechaVencimiento && new Date(form.fechaVencimiento) < new Date(form.fechaFabricacion)) {
+            toast.error('El vencimiento no puede ser anterior a la fabricación.');
+            return;
+        }
+        setGuardando(true);
+        try {
+            const datos = {
+                idArticulo: articulo.idArticulo,
+                idBodega: form.idBodega,
+                numeroLote: form.numeroLote.trim(),
+                cantidad: form.cantidad ? parseFloat(form.cantidad) : 0,
+                fechaFabricacion: form.fechaFabricacion || null,
+                fechaVencimiento: form.fechaVencimiento || null
+            };
+            if (form.costoUnitario) datos.costoUnitario = parseFloat(form.costoUnitario);
+            await invInternoService.crearLote(datos);
+            onCreado();
+        } catch (error) {
+            const errores = error.response?.data?.data?.errores;
+            toast.error(errores?.[0]?.mensaje || error.response?.data?.message || 'No se pudo crear el lote.');
+        } finally { setGuardando(false); }
+    };
+
+    return (
+        <div className="ii-modal-fondo" onClick={onCerrar}>
+            <div className="ii-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="ii-modal-cabecera">
+                    <h2>Nuevo lote</h2>
+                    <button className="ii-modal-cerrar" onClick={onCerrar}><X size={20} /></button>
+                </div>
+                <div className="ii-mov-articulo">
+                    <Layers size={18} />
+                    <div>
+                        <span className="ii-mov-nombre">{articulo.nombre}</span>
+                        <span className="ii-mov-stock">Registra una tanda con su vencimiento</span>
+                    </div>
+                </div>
+                <form onSubmit={guardar} className="ii-modal-form">
+                    <div className="ii-campo">
+                        <label>Número de lote *</label>
+                        <input type="text" placeholder="Ej: L-2026-001" value={form.numeroLote} onChange={(e) => setCampo('numeroLote', e.target.value)} autoFocus />
+                    </div>
+                    <div className="ii-campo-fila">
+                        <div className="ii-campo">
+                            <label>Bodega *</label>
+                            <select value={form.idBodega} onChange={(e) => setCampo('idBodega', e.target.value)}>
+                                {bodegas.map((b) => (
+                                    <option key={b.idBodega} value={b.idBodega}>{b.nombre}{b.esPrincipal ? ' (principal)' : ''}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="ii-campo">
+                            <label>Cantidad <span className="ii-opcional">(entra al stock)</span></label>
+                            <input type="number" min="0" step="0.001" placeholder="0" value={form.cantidad} onChange={(e) => setCampo('cantidad', e.target.value)} />
+                        </div>
+                    </div>
+                    <div className="ii-campo-fila">
+                        <div className="ii-campo">
+                            <label>Fecha de fabricación <span className="ii-opcional">(opcional)</span></label>
+                            <input type="date" value={form.fechaFabricacion} onChange={(e) => setCampo('fechaFabricacion', e.target.value)} />
+                        </div>
+                        <div className="ii-campo">
+                            <label>Fecha de vencimiento <span className="ii-opcional">(opcional)</span></label>
+                            <input type="date" value={form.fechaVencimiento} onChange={(e) => setCampo('fechaVencimiento', e.target.value)} />
+                        </div>
+                    </div>
+                    <div className="ii-campo">
+                        <label>Costo unitario <span className="ii-opcional">(opcional)</span></label>
+                        <input type="number" min="0" step="0.01" placeholder="0" value={form.costoUnitario} onChange={(e) => setCampo('costoUnitario', e.target.value)} />
+                    </div>
+                    <div className="ii-modal-acciones">
+                        <button type="button" className="ii-btn-cancelar" onClick={onCerrar}>Cancelar</button>
+                        <button type="submit" className="ii-btn-primario" disabled={guardando}>
+                            {guardando ? 'Creando...' : 'Crear lote'}
                         </button>
                     </div>
                 </form>

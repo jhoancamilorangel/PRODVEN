@@ -6,9 +6,11 @@ import MarketplaceHeader from '../components/marketplace/MarketplaceHeader';
 import MarketplaceFooter from '../components/marketplace/MarketplaceFooter';
 import {
     Package, Star, ShoppingCart, Minus, Plus, ArrowLeft,
-    ShieldCheck, Truck, Frown, MessageSquare
+    ShieldCheck, Truck, Frown, MessageSquare, AlertTriangle
 } from 'lucide-react';
 import './Producto.css';
+
+const UMBRAL_STOCK_BAJO = 10;
 
 function Producto() {
     const { idProducto } = useParams();
@@ -23,7 +25,7 @@ function Producto() {
     const [cantidad, setCantidad] = useState(1);
     const [agregando, setAgregando] = useState(false);
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_token');
+    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
 
     const cargar = useCallback(async () => {
         if (!idProducto) return;
@@ -104,10 +106,20 @@ function Producto() {
         );
     }
 
-    const precio = producto.precioVenta || producto.precio || 0;
-    const stock = producto.stock ?? producto.stockActual ?? 0;
+    const precio = producto.precioEfectivo || producto.precioVenta || producto.precio || 0;
     const imagen = producto.imagenPrincipal || producto.imagenUrl;
-    const sinStock = stock <= 0;
+
+    // Lógica de stock:
+    // - gestionaStock false => no se controla (ilimitado)
+    // - cantidadStock numérico => se respeta como tope
+    const gestionaStock = producto.gestionaStock !== false && producto.cantidadStock !== null && producto.cantidadStock !== undefined;
+    const stock = gestionaStock ? Number(producto.cantidadStock) : null;
+
+    const sinStock = producto.disponible === false || (gestionaStock && stock <= 0);
+    const stockBajo = gestionaStock && stock > 0 && stock <= UMBRAL_STOCK_BAJO;
+
+    // Tope del selector: el stock real si se gestiona, o un máximo razonable si no
+    const maxCantidad = gestionaStock ? stock : 99;
 
     const renderEstrellas = (cal, size = 16) => {
         const c = Math.round(parseFloat(cal) || 0);
@@ -155,8 +167,10 @@ function Producto() {
                         <div className="prd-stock-info">
                             {sinStock ? (
                                 <span className="prd-stock-agotado">Sin existencias</span>
+                            ) : stockBajo ? (
+                                <span className="prd-stock-bajo"><AlertTriangle size={16} /> ¡Solo quedan {stock} unidades!</span>
                             ) : (
-                                <span className="prd-stock-disponible"><ShieldCheck size={16} /> {stock} disponibles</span>
+                                <span className="prd-stock-disponible"><ShieldCheck size={16} /> Disponible</span>
                             )}
                         </div>
 
@@ -165,13 +179,18 @@ function Producto() {
                                 <div className="prd-cantidad">
                                     <button onClick={() => setCantidad((c) => Math.max(1, c - 1))}><Minus size={16} /></button>
                                     <span>{cantidad}</span>
-                                    <button onClick={() => setCantidad((c) => Math.min(stock, c + 1))}><Plus size={16} /></button>
+                                    <button onClick={() => setCantidad((c) => Math.min(maxCantidad, c + 1))} disabled={cantidad >= maxCantidad}><Plus size={16} /></button>
                                 </div>
                                 <button className="prd-btn-carrito" onClick={agregarAlCarrito} disabled={agregando}>
                                     <ShoppingCart size={20} />
                                     {agregando ? 'Agregando...' : 'Agregar al carrito'}
                                 </button>
                             </div>
+                        )}
+
+                        {/* Aviso cuando el cliente llega al tope de unidades disponibles */}
+                        {!sinStock && gestionaStock && cantidad >= maxCantidad && (
+                            <p className="prd-tope-aviso">Has alcanzado el máximo disponible de este producto.</p>
                         )}
 
                         <div className="prd-garantias">
