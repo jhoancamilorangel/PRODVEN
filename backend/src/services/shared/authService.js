@@ -52,17 +52,38 @@ const verificarAccessToken = (token) => {
 };
 
 /**
- * Verifica y decodifica un Refresh Token
+ * Verifica y decodifica un Refresh Token.
+ * Valida la firma JWT Y confirma en base de datos que el token
+ * siga activo (no haya sido revocado por logout / logout-all).
+ * Esto evita que un refresh token robado o filtrado siga funcionando
+ * después de que el usuario cerró sesión.
  * @param {string} token - Refresh Token a verificar
- * @returns {object} Payload decodificado
+ * @returns {Promise<object>} Payload decodificado
  */
-const verificarRefreshToken = (token) => {
+const verificarRefreshToken = async (token) => {
+    let decoded;
     try {
-        return jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+        decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
     } catch (error) {
         logger.warn(`Refresh token inválido: ${error.message}`);
         throw new Error('Refresh token inválido o expirado');
     }
+
+    const tokenDb = await TokenAcceso.findOne({
+        where: { token, tipo: 'refresh', activo: true }
+    });
+
+    if (!tokenDb) {
+        logger.warn(`Refresh token revocado o no encontrado: idUsuario ${decoded.idUsuario}`);
+        throw new Error('Refresh token inválido o expirado');
+    }
+
+    if (tokenDb.fechaExpiracion && new Date(tokenDb.fechaExpiracion) < new Date()) {
+        logger.warn(`Refresh token expirado en BD: idUsuario ${decoded.idUsuario}`);
+        throw new Error('Refresh token inválido o expirado');
+    }
+
+    return decoded;
 };
 
 /**

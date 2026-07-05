@@ -104,6 +104,30 @@ router.put(
 );
 
 /**
+ * PATCH /api/suscripciones/:id/cortesia
+ * Otorgar acceso de cortesía (gratis y completo) a una empresa.
+ * El :id es el idEmpresa.
+ */
+router.patch(
+    '/:id/cortesia',
+    verificarAutenticacion,
+    verificarRolEspecifico('superadmin'),
+    suscripcionController.activarCortesia
+);
+
+/**
+ * PATCH /api/suscripciones/:id/quitar-cortesia
+ * Retirar la cortesía: la empresa cae a premium con 30 días de prueba.
+ * El :id es el idEmpresa.
+ */
+router.patch(
+    '/:id/quitar-cortesia',
+    verificarAutenticacion,
+    verificarRolEspecifico('superadmin'),
+    suscripcionController.quitarCortesia
+);
+
+/**
  * PATCH /api/suscripciones/:id/renovar
  * Renovar suscripción extendiendo fecha
  */

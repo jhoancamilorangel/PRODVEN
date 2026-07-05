@@ -165,7 +165,7 @@ const Pedido = sequelize.define('Pedido', {
     indexes: [
         { fields: ['id_empresa', 'estado'] },
         { fields: ['id_cliente'] },
-        { unique: true, fields: ['numero_pedido'] },
+        { unique: true, fields: [`id_empresa`,'numero_pedido'] },
         { fields: ['fecha_pedido'] }
     ]
 });

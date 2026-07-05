@@ -11,6 +11,9 @@ const logger = require('../config/logger');
 const MAX_INTENTOS_FALLIDOS = 5;
 const MINUTOS_BLOQUEO = 15;
 
+// Roles que operan dentro de la app (no pueden usar la zona de marketplace/cliente)
+const ROLES_INTERNOS = ['superadmin', 'administrador', 'vendedor', 'produccion', 'supervisor', 'domiciliario'];
+
 /**
  * POST /api/auth/register
  * Registra un nuevo usuario y envía código de verificación al correo
@@ -86,11 +89,13 @@ const verificarCorreo = async (req, res, next) => {
 
 /**
  * POST /api/auth/login
- * Inicia sesión, valida credenciales y maneja 2FA si está activo
+ * Inicia sesión, valida credenciales y maneja 2FA si está activo.
+ * Si el login viene del marketplace (origen: 'marketplace') pero el usuario
+ * tiene un rol interno, se bloquea con un mensaje explicativo.
  */
 const login = async (req, res, next) => {
     try {
-        const { correo, password } = req.body;
+        const { correo, password, origen } = req.body;
 
         const usuario = await Usuario.findOne({ where: { correo } });
         if (!usuario) {
@@ -130,6 +135,13 @@ const login = async (req, res, next) => {
             await usuario.save();
             const intentosRestantes = MAX_INTENTOS_FALLIDOS - usuario.intentosFallidos;
             return sendResponse(res, 401, false, `Credenciales inválidas. Te quedan ${intentosRestantes} intentos`);
+        }
+
+        // Bloqueo de zona: un usuario interno no puede iniciar sesión en el marketplace.
+        // La contraseña ya se validó, así que es seguro revelar este mensaje: es el dueño de la cuenta.
+        if (origen === 'marketplace' && ROLES_INTERNOS.includes(usuario.rol)) {
+            logger.info(`Usuario interno ${usuario.idUsuario} (${usuario.rol}) intentó entrar por el marketplace`);
+            return sendResponse(res, 403, false, 'Esta cuenta es de uso interno de ProdVen (negocio). Para comprar en el marketplace, crea una cuenta nueva con otro correo.');
         }
 
         usuario.intentosFallidos = 0;
@@ -227,7 +239,7 @@ const refrescarToken = async (req, res, next) => {
     try {
         const { refreshToken } = req.body;
 
-        const decoded = authService.verificarRefreshToken(refreshToken);
+        const decoded = await authService.verificarRefreshToken(refreshToken);
 
         const usuario = await Usuario.findByPk(decoded.idUsuario);
         if (!usuario || usuario.eliminado || !usuario.activo) {
@@ -258,16 +270,22 @@ const refrescarToken = async (req, res, next) => {
 
 /**
  * POST /api/auth/logout
- * Cierra la sesión revocando el token actual
+ * Cierra la sesión revocando el access token actual y su refresh token asociado
  */
 const logout = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
+        const { refreshToken } = req.body;
 
         if (token) {
             await authService.revocarToken(token);
-            logger.info(`Logout: ${req.userId}`);
         }
+
+        if (refreshToken) {
+            await authService.revocarToken(refreshToken);
+        }
+
+        logger.info(`Logout: ${req.userId}`);
 
         return sendResponse(res, 200, true, 'Sesión cerrada correctamente');
     } catch (error) {
@@ -389,6 +407,112 @@ const restablecerPassword = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/auth/perfil
+ * Devuelve los datos del usuario autenticado.
+ */
+const obtenerPerfil = async (req, res, next) => {
+    try {
+        const usuario = await Usuario.findOne({
+            where: { idUsuario: req.userId, eliminado: false }
+        });
+
+        if (!usuario) {
+            return sendResponse(res, 404, false, 'Usuario no encontrado');
+        }
+
+        return sendResponse(res, 200, true, 'Perfil obtenido', {
+            usuario: {
+                idUsuario: usuario.idUsuario,
+                nombres: usuario.nombres,
+                apellidos: usuario.apellidos,
+                correo: usuario.correo,
+                telefono: usuario.telefono,
+                avatarUrl: usuario.avatarUrl,
+                rol: usuario.rol,
+                verificado: usuario.verificado
+            }
+        });
+    } catch (error) {
+        logger.error(`Error al obtener perfil: ${error.message}`);
+        next(error);
+    }
+};
+
+/**
+ * PUT /api/auth/perfil
+ * Actualiza nombres, apellidos y teléfono del usuario autenticado.
+ */
+const actualizarPerfil = async (req, res, next) => {
+    try {
+        const usuario = await Usuario.findOne({
+            where: { idUsuario: req.userId, eliminado: false }
+        });
+
+        if (!usuario) {
+            return sendResponse(res, 404, false, 'Usuario no encontrado');
+        }
+
+        const { nombres, apellidos, telefono } = req.body;
+
+        if (nombres !== undefined) usuario.nombres = nombres;
+        if (apellidos !== undefined) usuario.apellidos = apellidos;
+        if (telefono !== undefined) usuario.telefono = telefono;
+
+        await usuario.save();
+
+        return sendResponse(res, 200, true, 'Perfil actualizado', {
+            usuario: {
+                idUsuario: usuario.idUsuario,
+                nombres: usuario.nombres,
+                apellidos: usuario.apellidos,
+                correo: usuario.correo,
+                telefono: usuario.telefono,
+                avatarUrl: usuario.avatarUrl,
+                rol: usuario.rol,
+                verificado: usuario.verificado
+            }
+        });
+    } catch (error) {
+        logger.error(`Error al actualizar perfil: ${error.message}`);
+        next(error);
+    }
+};
+
+/**
+ * PUT /api/auth/cambiar-password
+ * Cambia la contraseña del usuario autenticado (valida la actual).
+ */
+const cambiarPassword = async (req, res, next) => {
+    try {
+        const usuario = await Usuario.findOne({
+            where: { idUsuario: req.userId, eliminado: false }
+        });
+
+        if (!usuario) {
+            return sendResponse(res, 404, false, 'Usuario no encontrado');
+        }
+
+        const { passwordActual, passwordNueva } = req.body;
+
+        // Verificar la contraseña actual
+        const coincide = await usuario.compararPassword(passwordActual);
+        if (!coincide) {
+            return sendResponse(res, 400, false, 'La contraseña actual es incorrecta');
+        }
+
+        // Asignar la nueva (el hook beforeUpdate del modelo la encripta sola)
+        usuario.claveHash = passwordNueva;
+        usuario.debeChangarPassword = false;
+        await usuario.save();
+
+        return sendResponse(res, 200, true, 'Contraseña actualizada correctamente');
+    } catch (error) {
+        logger.error(`Error al cambiar contraseña: ${error.message}`);
+        next(error);
+    }
+};
+
 module.exports = {
     registrar,
     verificarCorreo,
@@ -398,5 +522,8 @@ module.exports = {
     logout,
     logoutTodos,
     solicitarRecuperacion,
-    restablecerPassword
+    restablecerPassword,
+    obtenerPerfil,
+    actualizarPerfil,
+    cambiarPassword
 };

@@ -7,23 +7,24 @@ const logger = require('../../config/logger');
 
 /**
  * Servicio de Empresas
- * 
+ *
  * Centraliza toda la lógica reutilizable relacionada con empresas.
  * Maneja transacciones cuando se crean recursos relacionados.
  */
 
 /**
  * Crea una empresa completa con su suscripción, configuración y bodega principal
- * 
+ *
  * Esta operación crítica usa transacción de Sequelize para garantizar
  * que si algo falla, no quedemos con datos a medias.
- * 
+ *
  * @param {object} datosEmpresa - Datos básicos de la empresa
  * @param {string} planInicial - Plan a asignar (default: 'free')
  * @param {string} idCreador - ID del SuperAdmin que crea la empresa
+ * @param {object} opciones - { diasPruebaPersonalizado } para forzar días de prueba
  * @returns {Promise<object>} Objeto con empresa, suscripcion, configuracion y bodegaPrincipal
  */
-const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreador = null) => {
+const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreador = null, opciones = {}) => {
     const transaction = await sequelize.transaction();
 
     try {
@@ -40,11 +41,16 @@ const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreado
             throw new Error(`Plan inválido: ${planInicial}`);
         }
 
+        // Días de prueba: si se pasa uno personalizado, manda ese; si no, el del plan
+        const diasPrueba = opciones.diasPruebaPersonalizado !== undefined
+            ? opciones.diasPruebaPersonalizado
+            : configPlan.diasPrueba;
+
         const ahora = new Date();
-        const diasVigencia = configPlan.diasPrueba > 0 ? configPlan.diasPrueba : 30;
+        const diasVigencia = diasPrueba > 0 ? diasPrueba : 30;
         const fechaFin = new Date(ahora.getTime() + diasVigencia * 24 * 60 * 60 * 1000);
-        const fechaFinPrueba = configPlan.diasPrueba > 0
-            ? new Date(ahora.getTime() + configPlan.diasPrueba * 24 * 60 * 60 * 1000)
+        const fechaFinPrueba = diasPrueba > 0
+            ? new Date(ahora.getTime() + diasPrueba * 24 * 60 * 60 * 1000)
             : null;
 
         const suscripcion = await Suscripcion.create({
@@ -69,8 +75,8 @@ const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreado
             permiteMultiplesSucursales: configPlan.funcionalidades.permiteMultiplesSucursales,
             permiteAppMovilDomiciliarios: configPlan.funcionalidades.permiteAppMovilDomiciliarios,
             soportePrioritario: configPlan.funcionalidades.soportePrioritario,
-            diasPrueba: configPlan.diasPrueba,
-            enPeriodoPrueba: configPlan.diasPrueba > 0,
+            diasPrueba: diasPrueba,
+            enPeriodoPrueba: diasPrueba > 0,
             fechaFinPrueba: fechaFinPrueba
         }, { transaction });
 
@@ -95,7 +101,7 @@ const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreado
         await transaction.commit();
 
         logger.info(
-            `Empresa creada: ${empresa.idEmpresa} (${empresa.nombre}) con plan ${planInicial} y bodega principal ${bodegaPrincipal.idBodega} por usuario ${idCreador || 'sistema'}`
+            `Empresa creada: ${empresa.idEmpresa} (${empresa.nombre}) con plan ${planInicial} (${diasPrueba} días prueba) y bodega principal ${bodegaPrincipal.idBodega} por usuario ${idCreador || 'sistema'}`
         );
 
         return {
@@ -112,9 +118,72 @@ const crearEmpresaCompleta = async (datosEmpresa, planInicial = 'free', idCreado
 };
 
 /**
+ * VERIFICACIÓN PEREZOSA DE VENCIMIENTO DE PRUEBA
+ *
+ * Si una empresa está en período de prueba y este ya venció, la baja a
+ * plan 'free' y la saca del marketplace (modoPublico = false). NO la
+ * suspende: sigue operando su panel e inventario interno; solo pierde
+ * el marketplace (que free no incluye), hasta que pague o reciba cortesía.
+ *
+ * Las cortesías (precio 0, fecha 2099) nunca entran aquí porque su prueba
+ * no está activa y su fechaFin está muy en el futuro.
+ *
+ * Se llama antes de operaciones sensibles al plan (ej. activar marketplace).
+ *
+ * @param {string} idEmpresa
+ * @returns {Promise<boolean>} true si se degradó en esta llamada
+ */
+const degradarPruebaVencida = async (idEmpresa) => {
+    const suscripcion = await Suscripcion.findOne({ where: { idEmpresa } });
+    if (!suscripcion) return false;
+
+    // Solo aplica a suscripciones marcadas como en prueba
+    if (!suscripcion.enPeriodoPrueba) return false;
+
+    // ¿Ya venció la prueba?
+    const finPrueba = suscripcion.fechaFinPrueba ? new Date(suscripcion.fechaFinPrueba) : null;
+    if (!finPrueba || new Date() < finPrueba) return false; // aún vigente
+
+    // La prueba venció: bajar a free
+    const configFree = Suscripcion.obtenerConfiguracionPlan('free');
+
+    suscripcion.plan = 'free';
+    suscripcion.precioMensual = configFree.precioMensual;
+    suscripcion.limiteProductos = configFree.limites.productos;
+    suscripcion.limiteUsuarios = configFree.limites.usuarios;
+    suscripcion.limiteAlmacenamientoMb = configFree.limites.almacenamientoMb;
+    suscripcion.limitePedidosMensuales = configFree.limites.pedidosMensuales;
+    suscripcion.permiteMarketplace = configFree.funcionalidades.permiteMarketplace;
+    suscripcion.permiteReportesAvanzados = configFree.funcionalidades.permiteReportesAvanzados;
+    suscripcion.permiteIntegracionesExternas = configFree.funcionalidades.permiteIntegracionesExternas;
+    suscripcion.permiteApiExterna = configFree.funcionalidades.permiteApiExterna;
+    suscripcion.permiteMultiplesSucursales = configFree.funcionalidades.permiteMultiplesSucursales;
+    suscripcion.permiteAppMovilDomiciliarios = configFree.funcionalidades.permiteAppMovilDomiciliarios;
+    suscripcion.soportePrioritario = configFree.funcionalidades.soportePrioritario;
+    suscripcion.enPeriodoPrueba = false;
+    suscripcion.fechaFinPrueba = null;
+    // La suscripción free no "vence" en el sentido de bloquear el panel;
+    // le damos una fecha fin lejana para que estaActiva() sea true.
+    suscripcion.estado = 'activa';
+    suscripcion.fechaFin = new Date('2099-12-31T23:59:59Z');
+    suscripcion.fechaProximoCobro = null;
+    await suscripcion.save();
+
+    // Sacar la empresa del marketplace si estaba publicada
+    const empresa = await Empresa.findByPk(idEmpresa);
+    if (empresa && empresa.modoPublico) {
+        empresa.modoPublico = false;
+        await empresa.save();
+    }
+
+    logger.info(`Prueba vencida: empresa ${idEmpresa} degradada a free y retirada del marketplace`);
+    return true;
+};
+
+/**
  * Obtiene una empresa con todos sus datos relacionados
  * (suscripción y configuración)
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {object} opciones - { incluirSuscripcion, incluirConfiguracion }
  * @returns {Promise<object>} Empresa con datos relacionados
@@ -157,7 +226,7 @@ const obtenerEmpresaCompleta = async (idEmpresa, opciones = {}) => {
 
 /**
  * Verifica si una empresa puede crear más productos según su plan
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {number} cantidadActual - Productos que ya tiene
  * @returns {Promise<object>} { puede, limite, restantes, mensaje }
@@ -205,7 +274,7 @@ const puedeCrearMasProductos = async (idEmpresa, cantidadActual) => {
 
 /**
  * Verifica si una empresa puede crear más usuarios según su plan
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {number} cantidadActual - Usuarios que ya tiene
  * @returns {Promise<object>} { puede, limite, restantes, mensaje }
@@ -254,7 +323,7 @@ const puedeCrearMasUsuarios = async (idEmpresa, cantidadActual) => {
 /**
  * Verifica si una empresa tiene acceso a una funcionalidad específica
  * según su plan de suscripción
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {string} funcionalidad - Nombre de la funcionalidad
  * @returns {Promise<boolean>} true si tiene acceso
@@ -279,7 +348,7 @@ const tieneAcceso = async (idEmpresa, funcionalidad) => {
 /**
  * Verifica que una empresa exista, esté operativa y devuelve sus datos
  * Lanza error si no cumple condiciones (útil en middlewares)
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @returns {Promise<Empresa>} Empresa válida y operativa
  */
@@ -308,7 +377,7 @@ const validarEmpresaOperativa = async (idEmpresa) => {
 
 /**
  * Activa una empresa (cambia estado a 'activa' y marca fecha de verificación)
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @returns {Promise<Empresa>} Empresa actualizada
  */
@@ -330,7 +399,7 @@ const activarEmpresa = async (idEmpresa) => {
 
 /**
  * Desactiva una empresa (mantiene datos, pero no permite operaciones)
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @returns {Promise<Empresa>} Empresa actualizada
  */
@@ -352,7 +421,7 @@ const desactivarEmpresa = async (idEmpresa) => {
 /**
  * Suspende una empresa (por impago u otros motivos)
  * Diferente de desactivar: este es un bloqueo administrativo del SuperAdmin
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {string} motivo - Razón de la suspensión
  * @returns {Promise<Empresa>} Empresa actualizada
@@ -375,7 +444,7 @@ const suspenderEmpresa = async (idEmpresa, motivo) => {
 /**
  * Realiza un soft delete de una empresa
  * Los datos no se eliminan físicamente, solo se marcan como eliminados
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @returns {Promise<Empresa>} Empresa actualizada
  */
@@ -397,13 +466,19 @@ const eliminarEmpresaLogicamente = async (idEmpresa) => {
 
 /**
  * Cambia el modo público (marketplace) de una empresa
- * Verifica que el plan lo permita antes de activar
- * 
+ * Verifica que el plan lo permita antes de activar.
+ * Antes de decidir, ejecuta la verificación perezosa de vencimiento de
+ * prueba, para que una empresa con prueba vencida no pueda activar el
+ * marketplace (habrá caído a free en ese instante).
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {boolean} activar - true para activar, false para desactivar
  * @returns {Promise<object>} { exito, empresa, mensaje }
  */
 const toggleMarketplace = async (idEmpresa, activar) => {
+    // Verificación perezosa: si su prueba venció, aquí cae a free
+    await degradarPruebaVencida(idEmpresa);
+
     const empresa = await Empresa.findByPk(idEmpresa);
 
     if (!empresa) {
@@ -447,7 +522,7 @@ const toggleMarketplace = async (idEmpresa, activar) => {
 /**
  * Lista empresas públicas para el marketplace
  * Devuelve solo empresas activas con modo público activado
- * 
+ *
  * @param {object} filtros - { categoria, ciudad, busqueda, pagina, limit }
  * @returns {Promise<object>} { empresas, total, paginacion }
  */
@@ -500,6 +575,7 @@ const listarEmpresasPublicas = async (filtros = {}) => {
 
 module.exports = {
     crearEmpresaCompleta,
+    degradarPruebaVencida,
     obtenerEmpresaCompleta,
     puedeCrearMasProductos,
     puedeCrearMasUsuarios,

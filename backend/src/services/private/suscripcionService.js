@@ -5,20 +5,24 @@ const logger = require('../../config/logger');
 
 /**
  * Servicio de Suscripciones (Privado - solo administración interna)
- * 
+ *
  * Maneja toda la lógica relacionada con cambios de plan, renovaciones,
- * suspensiones por impago y cancelaciones.
- * 
+ * suspensiones por impago, cancelaciones y cortesías (acceso gratis).
+ *
  * Este servicio está en /private porque solo lo usa el SuperAdmin
  * y los procesos automáticos del sistema (jobs de renovación, etc.)
  */
 
+// Fecha "sin vencimiento" para cortesías permanentes (año 2099)
+const FECHA_CORTESIA_FIN = new Date('2099-12-31T23:59:59Z');
+const MARCA_CORTESIA = 'CORTESIA';
+
 /**
  * Cambia el plan de una empresa
- * 
+ *
  * Actualiza la suscripción con los nuevos límites y funcionalidades.
  * NO toca la fecha fin (el cambio aplica para el período actual).
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {string} nuevoPlan - 'free', 'basico', 'premium', 'enterprise'
  * @param {string} idEjecutor - ID del SuperAdmin que ejecuta el cambio
@@ -63,9 +67,8 @@ const cambiarPlan = async (idEmpresa, nuevoPlan, idEjecutor = null) => {
         await transaction.commit();
 
         logger.info(
-            `Plan cambiado para empresa ${idEmpresa}: ${planAnterior} → ${nuevoPlan} 
-            por usuario ${idEjecutor || 'sistema'}
-        `);
+            `Plan cambiado para empresa ${idEmpresa}: ${planAnterior} → ${nuevoPlan} por usuario ${idEjecutor || 'sistema'}`
+        );
 
         return suscripcion;
     } catch (error) {
@@ -75,12 +78,111 @@ const cambiarPlan = async (idEmpresa, nuevoPlan, idEjecutor = null) => {
     }
 };
 
+// =====================================================
+// CORTESÍA (acceso gratis otorgado por el SuperAdmin)
+// =====================================================
+
+/**
+ * Indica si una suscripción está en modo cortesía.
+ * Se identifica por la marca en notasAdmin + precio 0 + fecha fin lejana.
+ *
+ * @param {Suscripcion} suscripcion
+ * @returns {boolean}
+ */
+const esCortesia = (suscripcion) => {
+    if (!suscripcion) return false;
+    return (suscripcion.notasAdmin || '').includes(MARCA_CORTESIA)
+        && Number(suscripcion.precioMensual) === 0
+        && new Date(suscripcion.fechaFin).getFullYear() >= 2099;
+};
+
+/**
+ * Activa el modo cortesía para una empresa: acceso completo y gratis,
+ * sin vencimiento. Usa el plan 'enterprise' como base (todo desbloqueado),
+ * pone precio 0 y una fecha fin muy lejana.
+ *
+ * @param {string} idEmpresa
+ * @param {string} idEjecutor - SuperAdmin que la otorga
+ * @returns {Promise<Suscripcion>}
+ */
+const activarCortesia = async (idEmpresa, idEjecutor = null) => {
+    // Primero aplicamos los límites/funcionalidades de enterprise (todo desbloqueado)
+    await cambiarPlan(idEmpresa, 'enterprise', idEjecutor);
+
+    const suscripcion = await Suscripcion.findOne({ where: { idEmpresa } });
+    if (!suscripcion) {
+        throw new Error('La empresa no tiene una suscripción registrada');
+    }
+
+    suscripcion.precioMensual = 0;
+    suscripcion.estado = 'activa';
+    suscripcion.fechaFin = FECHA_CORTESIA_FIN;
+    suscripcion.fechaProximoCobro = null;
+    suscripcion.renovacionAutomatica = false;
+    suscripcion.enPeriodoPrueba = false;
+    suscripcion.fechaFinPrueba = null;
+
+    // Marca de cortesía en las notas (sin duplicar si ya estaba)
+    if (!(suscripcion.notasAdmin || '').includes(MARCA_CORTESIA)) {
+        const sello = `[${new Date().toISOString()}] ${MARCA_CORTESIA}: acceso gratis otorgado por ${idEjecutor || 'sistema'}`;
+        suscripcion.notasAdmin = sello + (suscripcion.notasAdmin ? `\n\n${suscripcion.notasAdmin}` : '');
+    }
+
+    await suscripcion.save();
+
+    logger.info(`Cortesía activada para empresa ${idEmpresa} por ${idEjecutor || 'sistema'}`);
+    return suscripcion;
+};
+
+/**
+ * Quita la cortesía a una empresa: cae a plan 'premium' con 30 días de
+ * prueba, para que decida si continúa pagando o no.
+ *
+ * @param {string} idEmpresa
+ * @param {string} idEjecutor - SuperAdmin que la retira
+ * @returns {Promise<Suscripcion>}
+ */
+const quitarCortesia = async (idEmpresa, idEjecutor = null) => {
+    // Aplicar límites/funcionalidades de premium
+    await cambiarPlan(idEmpresa, 'premium', idEjecutor);
+
+    const suscripcion = await Suscripcion.findOne({ where: { idEmpresa } });
+    if (!suscripcion) {
+        throw new Error('La empresa no tiene una suscripción registrada');
+    }
+
+    const ahora = new Date();
+    const fin30dias = new Date(ahora.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    suscripcion.estado = 'activa';
+    suscripcion.fechaInicio = ahora;
+    suscripcion.fechaFin = fin30dias;
+    suscripcion.fechaProximoCobro = fin30dias;
+    suscripcion.renovacionAutomatica = true;
+    suscripcion.enPeriodoPrueba = true;
+    suscripcion.fechaFinPrueba = fin30dias;
+
+    // Quitar la marca de cortesía de las notas, dejando registro del retiro
+    const notasSinMarca = (suscripcion.notasAdmin || '')
+        .split('\n')
+        .filter((linea) => !linea.includes(MARCA_CORTESIA))
+        .join('\n')
+        .trim();
+    const sello = `[${ahora.toISOString()}] Cortesía retirada por ${idEjecutor || 'sistema'}. Pasa a premium 30 días de prueba.`;
+    suscripcion.notasAdmin = sello + (notasSinMarca ?` \n\n${notasSinMarca}` : '');
+
+    await suscripcion.save();
+
+    logger.info(`Cortesía retirada para empresa ${idEmpresa} por ${idEjecutor || 'sistema'}`);
+    return suscripcion;
+};
+
 /**
  * Renueva una suscripción extendiendo la fecha de vencimiento
- * 
+ *
  * Se usa cuando el cobro automático es exitoso o cuando el SuperAdmin
  * renueva manualmente una suscripción.
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {string} cicloRenovacion - 'mensual', 'trimestral', 'semestral', 'anual'
  * @returns {Promise<Suscripcion>} Suscripción renovada
@@ -123,7 +225,7 @@ const renovarSuscripcion = async (idEmpresa, cicloRenovacion = 'mensual') => {
 
 /**
  * Suspende una suscripción (típicamente por impago)
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {string} motivo - Razón de la suspensión
  * @param {string} idEjecutor - ID del SuperAdmin que ejecuta
@@ -145,9 +247,8 @@ const suspenderSuscripcion = async (idEmpresa, motivo, idEjecutor = null) => {
     await suscripcion.save();
 
     logger.warn(
-        `Suscripción suspendida: ${idEmpresa}. 
-        Motivo: ${motivo}. Por: ${idEjecutor || 'sistema'}
-    `);
+        `Suscripción suspendida: ${idEmpresa}. Motivo: ${motivo}. Por: ${idEjecutor || 'sistema'}`
+    );
 
     return suscripcion;
 };
@@ -155,7 +256,7 @@ const suspenderSuscripcion = async (idEmpresa, motivo, idEjecutor = null) => {
 /**
  * Reactiva una suscripción suspendida
  * Útil cuando un cliente paga lo que debía
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @returns {Promise<Suscripcion>} Suscripción reactivada
  */
@@ -177,10 +278,10 @@ const reactivarSuscripcion = async (idEmpresa) => {
 
 /**
  * Cancela una suscripción
- * 
+ *
  * No elimina la suscripción, solo cambia su estado a 'cancelada' y registra
  * quién canceló, cuándo y por qué para análisis posterior.
- * 
+ *
  * @param {string} idEmpresa - ID de la empresa
  * @param {string} motivo - Razón de la cancelación
  * @param {string} idEjecutor - Quién ejecutó la cancelación
@@ -204,20 +305,19 @@ const cancelarSuscripcion = async (idEmpresa, motivo, idEjecutor) => {
     await suscripcion.save();
 
     logger.info(
-        `Suscripción cancelada: ${idEmpresa}. 
-        Motivo: ${motivo}. Por: ${idEjecutor}
-    `);
+        `Suscripción cancelada: ${idEmpresa}. Motivo: ${motivo}. Por: ${idEjecutor}`
+    );
 
     return suscripcion;
 };
 
 /**
  * Marca suscripciones vencidas y las pone en período de gracia
- * 
+ *
  * Este proceso lo debe ejecutar un job automático diariamente.
  * Las suscripciones vencidas pasan a 'periodo_gracia' por 7 días antes
  * de quedar definitivamente suspendidas.
- * 
+ *
  * @returns {Promise<object>} { actualizadas, suspendidas }
  */
 const procesarVencimientos = async () => {
@@ -248,9 +348,8 @@ const procesarVencimientos = async () => {
 
         if (actualizadas > 0 || suspendidas > 0) {
             logger.info(
-                `Proceso de vencimientos: ${actualizadas} en período de gracia, 
-                ${suspendidas} suspendidas definitivamente
-            `);
+                `Proceso de vencimientos: ${actualizadas} en período de gracia, ${suspendidas} suspendidas definitivamente`
+            );
         }
 
         return { actualizadas, suspendidas };
@@ -262,7 +361,7 @@ const procesarVencimientos = async () => {
 
 /**
  * Obtiene estadísticas globales de suscripciones (solo para SuperAdmin)
- * 
+ *
  * @returns {Promise<object>} Resumen completo de suscripciones del sistema
  */
 const obtenerEstadisticasSuscripciones = async () => {
@@ -312,7 +411,7 @@ const obtenerEstadisticasSuscripciones = async () => {
 /**
  * Lista todas las suscripciones con sus empresas asociadas
  * Para el dashboard del SuperAdmin
- * 
+ *
  * @param {object} filtros - { plan, estado, pagina, limit }
  * @returns {Promise<object>} { suscripciones, total, paginacion }
  */
@@ -351,6 +450,9 @@ const listarTodasLasSuscripciones = async (filtros = {}) => {
 
 module.exports = {
     cambiarPlan,
+    esCortesia,
+    activarCortesia,
+    quitarCortesia,
     renovarSuscripcion,
     suspenderSuscripcion,
     reactivarSuscripcion,

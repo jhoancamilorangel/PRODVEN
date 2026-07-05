@@ -43,6 +43,7 @@ const promocionRoutes = require('./src/routes/promocionRoutes');
 const notificacionRoutes = require('./src/routes/notificacionRoutes');
 const reporteRoutes = require('./src/routes/reporteRoutes');
 const auditoriaRoutes = require('./src/routes/auditoriaRoutes');
+const solicitudNegocioRoutes = require('./src/routes/solicitudNegocioRoutes');
 
 const app = express();
 
@@ -59,14 +60,26 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // RATE LIMITER GLOBAL (Portero)
 // =====================================================
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 100, // Máximo 100 peticiones por IP
+    windowMs: 1 * 60 * 1000, // 1 minuto
+    max: 300, // 300 peticiones por IP por minuto
     message: {
         success: false,
-        message: 'Demasiadas peticiones, intenta de nuevo en 15 minutos'
+        message: 'Demasiadas peticiones, intenta de nuevo en un momento'
     },
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    skip: (req) => {
+        // Los webhooks de pasarelas de pago NUNCA deben bloquearse:
+        // si PayU no recibe 200 a tiempo, reintenta, y perder esos
+        // reintentos por rate limit puede dejar un pago sin confirmar.
+        if (req.path.startsWith('/api/webhooks')) return true;
+
+        // El refresh de token es lógica interna silenciosa del sistema,
+        // no debe competir por cupo con el uso real del usuario.
+        if (req.path === '/api/auth/refresh') return true;
+
+        return false;
+    }
 });
 app.use(limiter);
 
@@ -100,6 +113,7 @@ app.use('/api/promociones', promocionRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/reportes', reporteRoutes);
 app.use('/api/auditoria', auditoriaRoutes);
+app.use('/api/solicitudes-negocio', solicitudNegocioRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {

@@ -4,6 +4,7 @@ const ReservaStock = require('../../models/ReservaStock');
 const reservaService = require('./reservaService');
 const domiciliarioService = require('./domiciliarioService');
 const auditoriaService = require('./auditoriaService');
+const notificacionEventos = require('./notificacionEventos');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 
@@ -23,6 +24,10 @@ const logger = require('../../config/logger');
  * Auditoría:
  *  - Cada cambio de estado se registra en auditoría (entidad pedidos),
  *    con el estado anterior y el nuevo, sin afectar la operación si falla.
+ *
+ * Notificaciones:
+ *  - Tras cada cambio de estado confirmado, se notifica al cliente
+ *    (fire-and-forget, no afecta la operación si falla).
  */
 
 // =====================================================
@@ -127,6 +132,9 @@ const cambiarEstado = async (idPedido, idEmpresa, nuevoEstado, idUsuario, opcion
             logger.error(`Error al auditar cambio de estado: ${error.message}`);
         }
 
+        // Notificar al cliente del cambio de estado (fire-and-forget)
+        await notificacionEventos.notificarCambioEstadoPedido(pedido, pedido.etiquetaEstado());
+
         return {
             exito: true,
             pedido: pedido.datosCompletos(),
@@ -223,6 +231,9 @@ const entregarPedido = async (pedido, idUsuario, opciones = {}) => {
             logger.error(`Error al auditar entrega: ${error.message}`);
         }
 
+        // Notificar al cliente que su pedido fue entregado (fire-and-forget)
+        await notificacionEventos.notificarCambioEstadoPedido(pedido, pedido.etiquetaEstado());
+
         return {
             exito: true,
             pedido: pedido.datosCompletos(),
@@ -296,6 +307,9 @@ const cancelarPedido = async (pedido, idUsuario, opciones = {}) => {
         } catch (error) {
             logger.error(`Error al auditar cancelación: ${error.message}`);
         }
+
+        // Notificar al cliente que su pedido fue cancelado (fire-and-forget)
+        await notificacionEventos.notificarCambioEstadoPedido(pedido, pedido.etiquetaEstado());
 
         return {
             exito: true,

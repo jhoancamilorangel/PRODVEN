@@ -5,6 +5,7 @@ const WebhookHandler = require('../../payments/WebhookHandler');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 const gestionPedidoService = require('./gestionPedidoService');
+const notificacionEventos = require('./notificacionEventos');
 /**
  * Servicio de Pagos
  *
@@ -189,6 +190,10 @@ const aplicarPagoExitoso = async (pago) => {
                 logger.warn(`Pago exitoso pero el pedido ${pago.idPedido} no existe.`);
                 return;
             }
+
+            // Notificar al cliente que su pago se registró correctamente
+            // (fire-and-forget; independiente de si el pedido se confirma o no)
+            await notificacionEventos.notificarPagoExitoso(pago, pedido);
 
             // Validar que el monto pagado cubra el total del pedido
             const totalPedido = parseFloat(pedido.total);

@@ -61,7 +61,10 @@ const obtenerMiPlan = async (req, res, next) => {
             return sendResponse(res, 404, false, 'No tienes una suscripción asociada');
         }
 
-        return sendResponse(res, 200, true, 'Plan actual', suscripcion.resumenPlan());
+        return sendResponse(res, 200, true, 'Plan actual', {
+            ...suscripcion.resumenPlan(),
+            esCortesia: suscripcionService.esCortesia(suscripcion)
+        });
     } catch (error) {
         logger.error(`Error al obtener mi plan: ${error.message}`);
         next(error);
@@ -158,6 +161,58 @@ const cambiarPlan = async (req, res, next) => {
         );
     } catch (error) {
         logger.error(`Error al cambiar plan: ${error.message}`);
+        next(error);
+    }
+};
+
+/**
+ * PATCH /api/suscripciones/:id/cortesia
+ * Otorga acceso de cortesía (gratis, completo, sin vencimiento) a una empresa.
+ * Solo SuperAdmin. El :id es el idEmpresa.
+ */
+const activarCortesia = async (req, res, next) => {
+    try {
+        const { id } = req.params; // idEmpresa
+
+        const empresa = await Empresa.findByPk(id);
+        if (!empresa) {
+            return sendResponse(res, 404, false, 'Empresa no encontrada');
+        }
+
+        const suscripcion = await suscripcionService.activarCortesia(id, req.userId);
+
+        return sendResponse(res, 200, true, 'Acceso de cortesía otorgado. La empresa ahora usa todo gratis.', {
+            ...suscripcion.resumenPlan(),
+            esCortesia: true
+        });
+    } catch (error) {
+        logger.error(`Error al activar cortesía: ${error.message}`);
+        next(error);
+    }
+};
+
+/**
+ * PATCH /api/suscripciones/:id/quitar-cortesia
+ * Retira la cortesía: la empresa cae a premium con 30 días de prueba.
+ * Solo SuperAdmin. El :id es el idEmpresa.
+ */
+const quitarCortesia = async (req, res, next) => {
+    try {
+        const { id } = req.params; // idEmpresa
+
+        const empresa = await Empresa.findByPk(id);
+        if (!empresa) {
+            return sendResponse(res, 404, false, 'Empresa no encontrada');
+        }
+
+        const suscripcion = await suscripcionService.quitarCortesia(id, req.userId);
+
+        return sendResponse(res, 200, true, 'Cortesía retirada. La empresa pasa a premium con 30 días de prueba.', {
+            ...suscripcion.resumenPlan(),
+            esCortesia: false
+        });
+    } catch (error) {
+        logger.error(`Error al quitar cortesía: ${error.message}`);
         next(error);
     }
 };
@@ -318,6 +373,8 @@ module.exports = {
     obtenerMiPlan,
     obtenerLimitesYUso,
     cambiarPlan,
+    activarCortesia,
+    quitarCortesia,
     renovarSuscripcion,
     suspenderSuscripcion,
     reactivarSuscripcion,

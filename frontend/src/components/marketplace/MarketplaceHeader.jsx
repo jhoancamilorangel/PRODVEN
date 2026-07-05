@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import marketplaceService from '../../services/marketplaceService';
 import { Store, Search, ShoppingCart, Package, User, LogOut, ChevronDown } from 'lucide-react';
 import './MarketplaceHeader.css';
+import authClienteService from '../../services/authClienteService';
+import CampanaNotificaciones from '../notificaciones/CampanaNotificaciones';
 
 function MarketplaceHeader({ busqueda, onBuscar }) {
     const navigate = useNavigate();
@@ -54,16 +56,23 @@ function MarketplaceHeader({ busqueda, onBuscar }) {
         if (onBuscar) onBuscar(texto);
     };
 
-    const cerrarSesion = () => {
-        localStorage.removeItem('prodven_cli_token');
-        localStorage.removeItem('prodven_cli_refresh');
-        localStorage.removeItem('prodven_cli_usuario');
-        setMenuAbierto(false);
-        navigate('/marketplace');
-        // Recargar para limpiar cualquier estado en memoria
-        setTimeout(() => window.location.reload(), 50);
-    };
+   const cerrarSesion = async () => {
+    const refreshToken = localStorage.getItem('prodven_cli_refresh');
 
+    try {
+        await authClienteService.logout(refreshToken);
+    } catch (error) {
+        console.error('Error al cerrar sesión en el servidor:', error);
+    }
+
+    localStorage.removeItem('prodven_cli_token');
+    localStorage.removeItem('prodven_cli_refresh');
+    localStorage.removeItem('prodven_cli_usuario');
+    setMenuAbierto(false);
+    navigate('/marketplace');
+    // Recargar para limpiar cualquier estado en memoria
+    setTimeout(() => window.location.reload(), 50);
+};
     const logueado = estaLogueado();
     const nombre = usuario?.nombres || '';
     const apellido = usuario?.apellidos || '';
@@ -94,6 +103,8 @@ function MarketplaceHeader({ busqueda, onBuscar }) {
                         {totalItems > 0 && <span className="mkt-carrito-badge">{totalItems}</span>}
                         <span className="mkt-header-btn-texto">Carrito</span>
                     </button>
+
+                    {logueado && <CampanaNotificaciones zona="cliente" />}
 
                     {logueado && (
                         <button className="mkt-header-btn" onClick={() => navigate('/mis-compras')}>
@@ -126,8 +137,11 @@ function MarketplaceHeader({ busqueda, onBuscar }) {
                                     <button className="mkt-menu-item" onClick={() => { setMenuAbierto(false); navigate('/mis-compras'); }}>
                                         <Package size={17} /> Mis compras
                                     </button>
-                                    <button className="mkt-menu-item" onClick={() => { setMenuAbierto(false); navigate('/cuenta'); }}>
+                                    <button className="mkt-menu-item" onClick={() => { setMenuAbierto(false); navigate('/mi-perfil'); }}>
                                         <User size={17} /> Mi perfil
+                                    </button>
+                                    <button className="mkt-menu-item mkt-menu-item-vender" onClick={() => { setMenuAbierto(false); navigate('/vender'); }}>
+                                        <Store size={17} /> Vender en ProdVen
                                     </button>
                                     <div className="mkt-menu-divisor"></div>
                                     <button className="mkt-menu-item mkt-menu-item-salir" onClick={cerrarSesion}>

@@ -160,6 +160,39 @@ router.post(
     authController.logoutTodos
 );
 
+// rutas nuevas
+
+/**
+ * GET /api/auth/perfil
+ * Devuelve los datos del perfil del usuario autenticado
+ */
+router.get(
+    '/perfil',
+    verificarAutenticacion,
+    authController.obtenerPerfil
+);
+
+/**
+ * PUT /api/auth/perfil
+ * Actualiza los datos básicos del perfil
+ */
+router.put(
+    '/perfil',
+    verificarAutenticacion,
+    authController.actualizarPerfil
+);
+
+/**
+ * PUT /api/auth/cambiar-password
+ * Permite al usuario cambiar su propia contraseña
+ */
+router.put(
+    '/cambiar-password',
+    verificarAutenticacion,
+    authController.cambiarPassword
+);
+
+
 /**
  * GET /api/auth/me
  * Devuelve los datos del usuario autenticado actualmente incluyendo permisos

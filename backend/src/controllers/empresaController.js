@@ -2,6 +2,7 @@ const Empresa = require('../models/Empresa');
 const Suscripcion = require('../models/Suscripcion');
 const ConfiguracionEmpresa = require('../models/ConfiguracionEmpresa');
 const empresaService = require('../services/shared/empresaService');
+const suscripcionService = require('../services/private/suscripcionService');
 const {
     construirFiltroTenant,
     construirPaginacion,
@@ -66,7 +67,7 @@ const crearEmpresa = async (req, res, next) => {
 
 /**
  * GET /api/empresas
- * Lista todas las empresas del sistema (Solo SuperAdmin)
+ * Lista todas las empresas del sistema con su suscripción (Solo SuperAdmin)
  */
 const listarEmpresas = async (req, res, next) => {
     try {
@@ -98,8 +99,27 @@ const listarEmpresas = async (req, res, next) => {
             order: [['fecha_creacion', 'DESC']]
         });
 
+        // Enriquecer cada empresa con su suscripción (id, plan, estado, cortesía)
+        const empresas = [];
+        for (const empresa of rows) {
+            const suscripcion = await Suscripcion.findOne({
+                where: { idEmpresa: empresa.idEmpresa }
+            });
+
+            empresas.push({
+                ...empresa.toJSON(),
+                suscripcion: suscripcion
+                    ? {
+                        idSuscripcion: suscripcion.idSuscripcion,
+                        ...suscripcion.resumenPlan(),
+                        esCortesia: suscripcionService.esCortesia(suscripcion)
+                    }
+                    : null
+            });
+        }
+
         return sendResponse(res, 200, true, 'Empresas obtenidas', {
-            empresas: rows,
+            empresas,
             paginacion: construirMetadataPaginacion(count, paginacion)
         });
     } catch (error) {

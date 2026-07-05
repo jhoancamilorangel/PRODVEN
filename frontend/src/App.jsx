@@ -22,9 +22,13 @@ import AuthCliente from './pages/AuthCliente';
 import ErrorBoundary from './components/ErrorBoundary';
 import Producto from './pages/Producto';
 import Carrito from './pages/Carrito';
-import InventarioInterno from './pages/InventarioInterno';
 import Checkout from './pages/Checkout';
 import MisCompras from './pages/MisCompras';
+import MiPerfil from './pages/MiPerfil';
+import InventarioInterno from './pages/InventarioInterno';
+import SolicitarNegocio from './pages/SolicitarNegocio';
+import SolicitudesNegocio from './pages/SolicitudesNegocio';
+import GestionEmpresas from './pages/GestionEmpresas';
 
 function App() {
     return (
@@ -42,6 +46,8 @@ function App() {
                         <Route path="/carrito" element={<Carrito />} />
                         <Route path="/checkout/:idEmpresa" element={<Checkout />} />
                         <Route path="/mis-compras" element={<MisCompras />} />
+                        <Route path="/mi-perfil" element={<MiPerfil />} />
+                        <Route path="/vender" element={<SolicitarNegocio />} />
 
                         {/* ===== RUTAS PROTEGIDAS (panel administrativo) ===== */}
                         <Route path="/dashboard" element={<RutaProtegida><Layout><Dashboard /></Layout></RutaProtegida>} />
@@ -58,6 +64,8 @@ function App() {
                         <Route path="/auditoria" element={<RutaProtegida><Layout><Auditoria /></Layout></RutaProtegida>} />
                         <Route path="/configuracion" element={<RutaProtegida><Layout><Configuracion /></Layout></RutaProtegida>} />
                         <Route path="/mi-tienda" element={<RutaProtegida><Layout><MiTienda /></Layout></RutaProtegida>} />
+                        <Route path="/solicitudes" element={<RutaProtegida><Layout><SolicitudesNegocio /></Layout></RutaProtegida>} />
+                        <Route path="/empresas" element={<RutaProtegida><Layout><GestionEmpresas /></Layout></RutaProtegida>} />
 
                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>

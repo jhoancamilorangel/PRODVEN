@@ -1,0 +1,396 @@
+/* =====================================================
+   CAMPANA DE NOTIFICACIONES — ProdVen
+   Paleta: Azul #0A2A43 · Azul sec #163b73 · Verde #27AE60
+   ===================================================== */
+
+.noti {
+    position: relative;
+    display: inline-flex;
+}
+
+/* ---- Botón campana ---- */
+.noti-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #0A2A43;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* En el panel (fondo claro) la campana va en azul; en marketplace hereda color */
+.noti-zona-panel .noti-btn {
+    background: #f1f5fb;
+    color: #163b73;
+}
+.noti-zona-cliente .noti-btn {
+    background: rgba(10, 42, 67, 0.06);
+    color: #0A2A43;
+}
+
+.noti-btn:hover {
+    transform: translateY(-2px);
+    background: rgba(22, 59, 115, 0.12);
+    box-shadow: 0 6px 18px rgba(10, 42, 67, 0.18);
+}
+
+.noti-btn-activo {
+    background: linear-gradient(135deg, #0A2A43, #163b73);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(10, 42, 67, 0.32);
+}
+
+.noti-btn-icono {
+    transition: transform 0.4s ease;
+}
+
+/* La campana "suena" suavemente cuando hay no leídas */
+.noti-btn-alerta:not(.noti-btn-activo) .noti-btn-icono {
+    animation: noti-campaneo 2.6s ease-in-out infinite;
+    transform-origin: 50% 4px;
+}
+@keyframes noti-campaneo {
+    0%, 82%, 100% { transform: rotate(0); }
+    85% { transform: rotate(13deg); }
+    88% { transform: rotate(-11deg); }
+    91% { transform: rotate(8deg); }
+    94% { transform: rotate(-6deg); }
+    97% { transform: rotate(3deg); }
+}
+
+/* ---- Badge ---- */
+.noti-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    background: linear-gradient(135deg, #2ecc71, #27AE60);
+    border: 2px solid #fff;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(39, 174, 96, 0.5);
+    animation: noti-badge-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.noti-zona-cliente .noti-badge { border-color: #fff; }
+
+.noti-badge::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 999px;
+    border: 2px solid #27AE60;
+    animation: noti-badge-pulso 2s ease-out infinite;
+}
+@keyframes noti-badge-pop {
+    0% { transform: scale(0); }
+    100% { transform: scale(1); }
+}
+@keyframes noti-badge-pulso {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* ---- Panel ---- */
+.noti-panel {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    background: #fff;
+    border-radius: 18px;
+    box-shadow:
+        0 2px 6px rgba(10, 42, 67, 0.06),
+        0 18px 50px rgba(10, 42, 67, 0.22);
+    overflow: hidden;
+    z-index: 1000;
+    transform-origin: top right;
+    animation: noti-panel-entra 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes noti-panel-entra {
+    0% { opacity: 0; transform: translateY(-10px) scale(0.96); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Flechita superior */
+.noti-panel::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 16px;
+    width: 12px;
+    height: 12px;
+    background: #0A2A43;
+    transform: rotate(45deg);
+    border-radius: 2px;
+}
+
+/* ---- Cabecera del panel ---- */
+.noti-panel-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 16px;
+    background: linear-gradient(135deg, #0A2A43 0%, #163b73 100%);
+    color: #fff;
+    position: relative;
+}
+.noti-panel-cabecera::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #27AE60, transparent);
+}
+
+.noti-panel-titulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+.noti-panel-contador {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 800;
+    background: #27AE60;
+    border-radius: 999px;
+}
+
+.noti-marcar-todas {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.14);
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+.noti-marcar-todas:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.26);
+    transform: translateY(-1px);
+}
+.noti-marcar-todas:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* ---- Lista ---- */
+.noti-lista {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #fbfcfe;
+}
+
+/* Scrollbar temático */
+.noti-lista::-webkit-scrollbar { width: 8px; }
+.noti-lista::-webkit-scrollbar-track { background: transparent; }
+.noti-lista::-webkit-scrollbar-thumb {
+    background: rgba(22, 59, 115, 0.22);
+    border-radius: 999px;
+    border: 2px solid #fbfcfe;
+}
+.noti-lista::-webkit-scrollbar-thumb:hover {
+    background: rgba(22, 59, 115, 0.4);
+}
+
+/* ---- Item ---- */
+.noti-item {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #eef2f7;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
+    animation: noti-item-entra 0.3s ease backwards;
+}
+.noti-item:hover {
+    background: #f4f8fc;
+}
+.noti-item:active {
+    transform: scale(0.99);
+}
+@keyframes noti-item-entra {
+    0% { opacity: 0; transform: translateX(8px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+
+/* No leída: barra de acento + tinte suave */
+.noti-item-no-leida {
+    background: linear-gradient(90deg, rgba(39, 174, 96, 0.07), transparent 60%);
+}
+.noti-item-no-leida::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 10px; bottom: 10px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, #27AE60, #163b73);
+}
+
+/* Chip de ícono por tipo */
+.noti-chip {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(10, 42, 67, 0.14);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.noti-item:hover .noti-chip {
+    transform: scale(1.08) rotate(-4deg);
+}
+.noti-chip-pedido     { background: linear-gradient(135deg, #163b73, #0A2A43); }
+.noti-chip-pago       { background: linear-gradient(135deg, #2ecc71, #27AE60); }
+.noti-chip-inventario { background: linear-gradient(135deg, #e67e22, #d35400); }
+.noti-chip-mensaje    { background: linear-gradient(135deg, #3498db, #2980b9); }
+.noti-chip-promocion  { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+.noti-chip-sistema    { background: linear-gradient(135deg, #64748b, #475569); }
+
+.noti-item-cuerpo {
+    flex: 1;
+    min-width: 0;
+}
+.noti-item-titulo {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #0A2A43;
+    margin-bottom: 2px;
+    line-height: 1.3;
+}
+.noti-item-mensaje {
+    font-size: 12.5px;
+    color: #55637a;
+    line-height: 1.45;
+    margin-bottom: 5px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.noti-item-tiempo {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    letter-spacing: 0.2px;
+}
+
+/* Punto de no leída */
+.noti-punto {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: #27AE60;
+    box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.18);
+    animation: noti-punto-latido 1.8s ease-in-out infinite;
+}
+@keyframes noti-punto-latido {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.25); opacity: 0.7; }
+}
+
+/* ---- Estado cargando ---- */
+.noti-cargando {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 44px 0;
+    color: #163b73;
+}
+.noti-cargando p {
+    font-size: 13px;
+    color: #94a3b8;
+    margin: 0;
+}
+
+/* ---- Estado vacío ---- */
+.noti-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 40px 24px;
+}
+.noti-vacio-icono {
+    width: 62px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #163b73;
+    background: linear-gradient(135deg, #eef3fa, #e2ebf7);
+    margin-bottom: 14px;
+    box-shadow: inset 0 2px 6px rgba(22, 59, 115, 0.08);
+}
+.noti-vacio-titulo {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #0A2A43;
+    margin: 0 0 4px;
+}
+.noti-vacio-sub {
+    font-size: 12.5px;
+    color: #94a3b8;
+}
+
+/* ---- Utilitario: giro ---- */
+.noti-girando {
+    animation: noti-giro 0.9s linear infinite;
+}
+@keyframes noti-giro {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 480px) {
+    .noti-panel {
+        position: fixed;
+        top: 64px;
+        right: 12px;
+        left: 12px;
+        width: auto;
+        max-width: none;
+    }
+    .noti-panel::before { display: none; }
+}

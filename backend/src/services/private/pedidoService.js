@@ -7,6 +7,7 @@ const Producto = require('../../models/Producto');
 const Cliente = require('../../models/Cliente');
 const reservaService = require('./reservaService');
 const carritoService = require('./carritoService');
+const notificacionEventos = require('./notificacionEventos');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 
@@ -16,7 +17,93 @@ const logger = require('../../config/logger');
  * Maneja la conversión de carrito a pedido, que es el corazón de la venta.
  * Al crear un pedido se reserva el stock (Fase 7). El stock se consume de
  * verdad al entregar (Bloque 3). La relación cliente-empresa vive aquí.
+ *
+ * Notificaciones:
+ *  - Al crear el pedido, se notifica al negocio (administrador de la empresa)
+ *    del nuevo pedido entrante (fire-and-forget, tras el commit).
+ *
+ * Blindaje numérico y de ENUMs:
+ *  - Todos los campos numéricos que van al modelo Pedido pasan por
+ *    numeroSeguro(), que NUNCA devuelve NaN/null/undefined.
+ *  - tipoEntrega y tipoPago se validan contra listas blancas idénticas
+ *    a los ENUM del modelo.
+ *
+ * Blindaje de numeroPedido:
+ *  - generarNumeroPedido() usa COUNT(), que NO es seguro bajo concurrencia
+ *    (dos requests casi simultáneos pueden generar el mismo correlativo).
+ *  - Por eso la creación del pedido está envuelta en un retry: si MySQL
+ *    rechaza el INSERT por duplicado en numero_pedido, se regenera el
+ *    número y se reintenta, sin tocar las reservas de stock ya creadas.
  */
+
+// =====================================================
+// LISTAS BLANCAS (deben coincidir 1:1 con los ENUM del modelo Pedido)
+// =====================================================
+
+const TIPOS_ENTREGA_VALIDOS = ['domicilio', 'recogida', 'en_sitio'];
+const TIPOS_PAGO_VALIDOS = ['digital', 'contra_entrega', 'mixto'];
+
+const MAX_INTENTOS_NUMERO_PEDIDO = 3;
+
+// =====================================================
+// HELPERS DE SANEAMIENTO
+// =====================================================
+
+const numeroSeguro = (valor, porDefecto, nombreCampo) => {
+    const parseado = parseFloat(valor);
+    if (Number.isFinite(parseado)) {
+        return parseado;
+    }
+    logger.warn(
+        `[pedidoService] Valor numérico inválido para "${nombreCampo}": ` +
+        `${JSON.stringify(valor)} (tipo: ${typeof valor}). Usando valor por defecto ${porDefecto}.`
+    );
+    return porDefecto;
+};
+
+const enumSeguro = (valor, valoresValidos, porDefecto, nombreCampo) => {
+    if (valoresValidos.includes(valor)) {
+        return valor;
+    }
+    logger.warn(
+        `[pedidoService] Valor de ENUM inválido para "${nombreCampo}": ` +
+        `${JSON.stringify(valor)}. Valores permitidos: [${valoresValidos.join(', ')}]. ` +
+        `Usando valor por defecto "${porDefecto}".`
+    );
+    return porDefecto;
+};
+
+/**
+ * Registra el detalle real de un error de Sequelize (Validation o Unique
+ * Constraint) en el log. Ambos tipos exponen error.errors[], por eso NO
+ * filtramos por error.name -- filtrar por nombre fue lo que hizo que el
+ * primer intento de logging detallado no se disparara para un
+ * SequelizeUniqueConstraintError.
+ */
+const logDetalleErrorSequelize = (error, contexto) => {
+    if (Array.isArray(error.errors) && error.errors.length > 0) {
+        const detalle = error.errors
+            .map(e => `campo="${e.path}" valor=${JSON.stringify(e.value)} tipo="${e.type || e.validatorKey}" razon="${e.message}"`)
+            .join(' | ');
+        logger.error(`${contexto}: ${detalle}`);
+    } else {
+        logger.error(`${contexto}: ${error.message}`);
+    }
+};
+
+/**
+ * Determina si un error de Sequelize es específicamente una colisión
+ * de numero_pedido (constraint único), y por lo tanto es seguro reintentar
+ * regenerando el número.
+ */
+const esColisionNumeroPedido = (error) => {
+    if (error.name !== 'SequelizeUniqueConstraintError') {
+        return false;
+    }
+    const campos = (error.fields && Object.keys(error.fields)) || [];
+    const enErrors = Array.isArray(error.errors) && error.errors.some(e => e.path === 'numeroPedido' || e.path === 'numero_pedido');
+    return campos.includes('numero_pedido') || enErrors;
+};
 
 // =====================================================
 // GENERACIÓN DE NÚMERO DE PEDIDO
@@ -25,22 +112,43 @@ const logger = require('../../config/logger');
 /**
  * Genera un número de pedido único y legible para la empresa
  * Formato: PED-AÑO-NNNNN (ej: PED-2026-00042)
+ *
+ * NOTA: usa COUNT(), que no es 100% seguro bajo concurrencia alta.
+ * La protección real contra colisiones está en el retry de
+ * crearPedidoDesdeCarrito, que regenera el número si el INSERT falla
+ * por duplicado.
  */
 const generarNumeroPedido = async (idEmpresa, transaction) => {
     const anio = new Date().getFullYear();
     const prefijo = `PED-${anio}-`;
 
-    // Cuenta cuántos pedidos tiene la empresa este año para el correlativo
-    const { Op } = require('sequelize');
-    const cantidad = await Pedido.count({
-        where: {
-            idEmpresa,
-            numeroPedido: { [Op.like]: `${prefijo}%`}
-        },
-        transaction
-    });
+    // FOR UPDATE bloquea la fila del último pedido de ESTA empresa para
+    // este año, evitando que dos transacciones concurrentes lean el mismo
+    // correlativo antes de que la primera haga commit. Ya no depende de
+    // COUNT(), que no daba esa garantía bajo concurrencia.
+    const resultados = await sequelize.query(
+        `SELECT numero_pedido FROM pedidos
+         WHERE id_empresa = :idEmpresa AND numero_pedido LIKE :prefijoLike
+         ORDER BY numero_pedido DESC
+         LIMIT 1
+         FOR UPDATE`,
+        {
+            replacements: { idEmpresa, prefijoLike: `${prefijo}%` },
+            transaction,
+            type: sequelize.QueryTypes.SELECT
+        }
+    );
 
-    const correlativo = String(cantidad + 1).padStart(5, '0');
+    let siguienteCorrelativo = 1;
+    if (resultados.length > 0 && resultados[0].numero_pedido) {
+        const partes = resultados[0].numero_pedido.split('-');
+        const ultimoCorrelativo = parseInt(partes[2], 10);
+        if (Number.isFinite(ultimoCorrelativo)) {
+            siguienteCorrelativo = ultimoCorrelativo + 1;
+        }
+    }
+
+    const correlativo = String(siguienteCorrelativo).padStart(5, '0');
     return `${prefijo}${correlativo}`;
 };
 
@@ -91,7 +199,6 @@ const crearPedidoDesdeCarrito = async (idUsuario, idEmpresa, datos = {}) => {
     }
 
     // 4. Crear las reservas (cada una con su propia transacción interna)
-    //    Guardamos los ids para poder liberarlas si algo falla después
     const reservasCreadas = [];
     try {
         for (const item of items) {
@@ -105,7 +212,6 @@ const crearPedidoDesdeCarrito = async (idUsuario, idEmpresa, datos = {}) => {
             });
 
             if (!resultadoReserva.exito) {
-                // Si una reserva falla, liberamos las ya creadas y abortamos
                 await liberarReservasCreadas(reservasCreadas);
                 return { exito: false, mensaje: resultadoReserva.mensaje };
             }
@@ -118,98 +224,133 @@ const crearPedidoDesdeCarrito = async (idUsuario, idEmpresa, datos = {}) => {
         throw error;
     }
 
-    // 5. Con las reservas hechas, crear el pedido en una transacción
-    const transaction = await sequelize.transaction();
+    // 5. Con las reservas hechas, crear el pedido en una transacción,
+    //    con retry si la colisión es específicamente en numero_pedido.
+    let ultimoError = null;
 
-    try {
-        const numeroPedido = await generarNumeroPedido(idEmpresa, transaction);
+    for (let intento = 1; intento <= MAX_INTENTOS_NUMERO_PEDIDO; intento++) {
+        const transaction = await sequelize.transaction();
 
-        // Calcular totales desde el carrito
-        const subtotal = parseFloat(carrito.subtotal);
-        const descuento = parseFloat(carrito.descuento) || 0;
-        const costoDomicilio = datos.costoDomicilio !== undefined
-            ? parseFloat(datos.costoDomicilio)
-            : parseFloat(carrito.costoDomicilio) || 0;
-        const impuestos = datos.impuestos !== undefined ? parseFloat(datos.impuestos) : 0;
-        const total = Math.round((subtotal - descuento + costoDomicilio + impuestos) * 100) / 100;
+        try {
+            const numeroPedido = await generarNumeroPedido(idEmpresa, transaction);
 
-        // Crear el pedido
-        const pedido = await Pedido.create({
-            idEmpresa,
-            idCliente: cliente.idCliente,
-            idDireccion: datos.idDireccion || null,
-            numeroPedido,
-            tipoEntrega: datos.tipoEntrega || 'domicilio',
-            tipoPago: datos.tipoPago || 'digital',
-            estado: 'pendiente',
-            subtotal,
-            descuento,
-            impuestos,
-            costoDomicilio,
-            total,
-            notas: datos.notas || null,
-            direccionEnvio: datos.direccionEnvio || null,
-            latitudEntrega: datos.latitudEntrega || null,
-            longitudEntrega: datos.longitudEntrega || null,
-            fechaPedido: new Date(),
-            creadoPor: idUsuario
-        }, { transaction });
+            // --- Saneamiento de tipoEntrega / tipoPago ---
+            const tipoEntrega = enumSeguro(datos.tipoEntrega, TIPOS_ENTREGA_VALIDOS, 'domicilio', 'tipoEntrega');
+            const tipoPago = enumSeguro(datos.tipoPago, TIPOS_PAGO_VALIDOS, 'digital', 'tipoPago');
 
-        // Crear los detalles (una línea por item del carrito)
-        for (const item of items) {
-            await DetallePedido.create({
-                idPedido: pedido.idPedido,
-                idProducto: item.idProducto,
-                cantidad: item.cantidad,
-                precioUnitario: item.precioUnitario,
-                descuento: parseFloat(item.descuento) || 0,
-                subtotal: item.subtotal,
-                notas: item.notas || null
+            // --- Saneamiento numérico ---
+            const subtotal = numeroSeguro(carrito.subtotal, 0, 'subtotal (carrito.subtotal)');
+            const descuento = numeroSeguro(carrito.descuento, 0, 'descuento (carrito.descuento)');
+
+            const costoDomicilioBody = datos.costoDomicilio !== undefined
+                ? numeroSeguro(datos.costoDomicilio, null, 'costoDomicilio (body)')
+                : null;
+            const costoDomicilio = costoDomicilioBody !== null
+                ? costoDomicilioBody
+                : numeroSeguro(carrito.costoDomicilio, 0, 'costoDomicilio (carrito.costoDomicilio)');
+
+            const impuestos = datos.impuestos !== undefined
+                ? numeroSeguro(datos.impuestos, 0, 'impuestos (body)')
+                : 0;
+
+            const total = Math.round((subtotal - descuento + costoDomicilio + impuestos) * 100) / 100;
+
+            // Crear el pedido
+            const pedido = await Pedido.create({
+                idEmpresa,
+                idCliente: cliente.idCliente,
+                idDireccion: datos.idDireccion || null,
+                numeroPedido,
+                tipoEntrega,
+                tipoPago,
+                estado: 'pendiente',
+                subtotal,
+                descuento,
+                impuestos,
+                costoDomicilio,
+                total,
+                notas: datos.notas || null,
+                direccionEnvio: datos.direccionEnvio || null,
+                latitudEntrega: datos.latitudEntrega || null,
+                longitudEntrega: datos.longitudEntrega || null,
+                fechaPedido: new Date(),
+                creadoPor: idUsuario
             }, { transaction });
-        }
-        // Actualizar las reservas para que apunten al pedido (Opción B)
-        // Se crearon con referencia al carrito; ahora las vinculamos al pedido real
-        const ReservaStock = require('../../models/ReservaStock');
-        await ReservaStock.update(
-            { referenciaId: pedido.idPedido },
-            {
-                where: {
-                    referenciaTipo: 'pedido',
-                    referenciaId: carrito.idCarrito,
-                    estado: 'activa'
-                },
-                transaction
+
+            // Crear los detalles (una línea por item del carrito)
+            for (const item of items) {
+                await DetallePedido.create({
+                    idPedido: pedido.idPedido,
+                    idProducto: item.idProducto,
+                    cantidad: item.cantidad,
+                    precioUnitario: item.precioUnitario,
+                    descuento: numeroSeguro(`item.descuento, 0, detalle.descuento (producto ${item.idProducto})`),
+                    subtotal: item.subtotal,
+                    notas: item.notas || null
+                }, { transaction });
             }
-        );
 
-        // Crear el primer registro de seguimiento
-        await SeguimientoPedido.create({
-            idPedido: pedido.idPedido,
-            estado: 'pendiente',
-            descripcion: 'Pedido creado y stock reservado',
-            registradoPor: idUsuario
-        }, { transaction });
+            // Actualizar las reservas para que apunten al pedido (Opción B)
+            const ReservaStock = require('../../models/ReservaStock');
+            await ReservaStock.update(
+                { referenciaId: pedido.idPedido },
+                {
+                    where: {
+                        referenciaTipo: 'pedido',
+                        referenciaId: carrito.idCarrito,
+                        estado: 'activa'
+                    },
+                    transaction
+                }
+            );
 
-        // Marcar el carrito como convertido
-        carrito.estado = 'convertido';
-        await carrito.save({ transaction });
+            // Crear el primer registro de seguimiento
+            await SeguimientoPedido.create({
+                idPedido: pedido.idPedido,
+                estado: 'pendiente',
+                descripcion: 'Pedido creado y stock reservado',
+                registradoPor: idUsuario
+            }, { transaction });
 
-        await transaction.commit();
+            // Marcar el carrito como convertido
+            carrito.estado = 'convertido';
+            await carrito.save({ transaction });
 
-        logger.info(`Pedido ${numeroPedido} creado desde carrito ${carrito.idCarrito}`);
+            await transaction.commit();
 
-        return {
-            exito: true,
-            pedido: pedido.datosCompletos(),
-            mensaje: 'Pedido creado correctamente'
-        };
-    } catch (error) {
-        await transaction.rollback();
-        // Si falla la creación del pedido, liberar las reservas para no dejar stock huérfano
-        await liberarReservasCreadas(reservasCreadas);
-        logger.error(`Error al crear el pedido: ${error.message}`);
-        throw error;
+            logger.info(`Pedido ${numeroPedido} creado desde carrito ${carrito.idCarrito} (intento ${intento})`);
+
+            // Notificar al negocio del nuevo pedido entrante (fire-and-forget, tras el commit)
+            await notificacionEventos.notificarNuevoPedido(pedido);
+
+            return {
+                exito: true,
+                pedido: pedido.datosCompletos(),
+                mensaje: 'Pedido creado correctamente'
+            };
+        } catch (error) {
+            await transaction.rollback();
+            ultimoError = error;
+
+            if (esColisionNumeroPedido(error) && intento < MAX_INTENTOS_NUMERO_PEDIDO) {
+                logger.warn(
+                    `[pedidoService] Colisión de numeroPedido en intento ${intento}/${MAX_INTENTOS_NUMERO_PEDIDO}. ` +
+                    `Reintentando con un nuevo número (no se tocan las reservas de stock).`
+                );
+                continue; // reintenta el for con un nuevo número, mismas reservas
+            }
+
+            // Error no recuperable (o se agotaron los reintentos):
+            // liberar reservas y reportar el detalle completo.
+            await liberarReservasCreadas(reservasCreadas);
+            logDetalleErrorSequelize(error, 'Error al crear el pedido');
+            throw error;
+        }
     }
+
+    // No debería llegarse aquí, pero por seguridad:
+    await liberarReservasCreadas(reservasCreadas);
+    throw ultimoError;
 };
 
 /**

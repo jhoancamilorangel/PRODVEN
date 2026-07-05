@@ -60,9 +60,20 @@ export function AuthProvider({ children }) {
     };
 
     /**
-     * Cierra sesión: limpia todo y borra al usuario.
+     * Cierra sesión: avisa al backend para revocar los tokens en BD
+     * (access y refresh), y luego limpia todo del navegador.
+     * Si la llamada al backend falla (ej. sin internet), se limpia
+     * el navegador igual para no dejar al usuario atrapado.
      */
-    const logout = () => {
+    const logout = async () => {
+        const refreshToken = localStorage.getItem('prodven_refresh');
+
+        try {
+            await api.post('/auth/logout', { refreshToken });
+        } catch (error) {
+            console.error('Error al cerrar sesión en el servidor:', error);
+        }
+
         localStorage.removeItem('prodven_token');
         localStorage.removeItem('prodven_refresh');
         localStorage.removeItem('prodven_usuario');

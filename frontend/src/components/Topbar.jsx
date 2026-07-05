@@ -1,9 +1,10 @@
 import { useAuth } from '../context/AuthContext';
+import CampanaNotificaciones from './notificaciones/CampanaNotificaciones';
 import './Topbar.css';
 
 /**
  * Barra superior del panel. Muestra el control del menú (móvil),
- * el usuario actual y la opción de cerrar sesión.
+ * las notificaciones del negocio, el usuario actual y cerrar sesión.
  */
 function Topbar({ onToggleMenu }) {
     const { usuario, logout } = useAuth();
@@ -19,6 +20,8 @@ function Topbar({ onToggleMenu }) {
             </button>
 
             <div className="topbar-derecha">
+                <CampanaNotificaciones zona="panel" />
+
                 <div className="topbar-usuario">
                     <div className="topbar-avatar">{iniciales}</div>
                     <div className="topbar-usuario-info">

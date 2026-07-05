@@ -1,0 +1,458 @@
+/* =====================================================
+   SOLICITAR NEGOCIO — ProdVen
+   Paleta: Azul #0A2A43 · Azul sec #163b73 · Verde #27AE60
+   ===================================================== */
+
+.sol {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background:
+        radial-gradient(circle at 15% 10%, rgba(22, 59, 115, 0.05), transparent 40%),
+        radial-gradient(circle at 85% 90%, rgba(39, 174, 96, 0.05), transparent 40%),
+        #f7f9fc;
+}
+
+.sol-main {
+    flex: 1;
+    width: 100%;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 28px 20px 64px;
+}
+
+.sol-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px;
+    background: #fff;
+    border: 1px solid #e6ecf3;
+    border-radius: 10px;
+    color: #163b73;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 24px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, gap 0.2s ease;
+}
+.sol-volver:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(22, 59, 115, 0.12);
+    gap: 10px;
+}
+
+/* ===== FASE 1: ADVERTENCIA ===== */
+.sol-advertencia {
+    animation: sol-fade-in 0.5s ease both;
+}
+
+.sol-hero {
+    text-align: center;
+    padding: 20px 20px 34px;
+    animation: sol-slide-up 0.5s ease both;
+}
+.sol-hero-icono {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;
+    color: #fff;
+    background: linear-gradient(135deg, #0A2A43, #163b73);
+    box-shadow: 0 14px 34px rgba(10, 42, 67, 0.32);
+    position: relative;
+    animation: sol-icono-flotar 3.5s ease-in-out infinite;
+}
+.sol-hero-icono::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 30px;
+    border: 2px solid rgba(39, 174, 96, 0.3);
+    animation: sol-anillo 2.6s ease-out infinite;
+}
+@keyframes sol-icono-flotar {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+@keyframes sol-anillo {
+    0% { transform: scale(0.9); opacity: 0.8; }
+    100% { transform: scale(1.25); opacity: 0; }
+}
+.sol-hero h1 {
+    font-size: 30px;
+    font-weight: 800;
+    color: #0A2A43;
+    letter-spacing: -0.7px;
+    margin: 0 0 12px;
+    line-height: 1.2;
+}
+.sol-hero-sub {
+    font-size: 16px;
+    color: #55637a;
+    max-width: 540px;
+    margin: 0 auto;
+    line-height: 1.55;
+}
+
+/* Beneficios */
+.sol-beneficios {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 12px 0 30px;
+}
+.sol-beneficio {
+    background: #fff;
+    border: 1px solid #eef2f7;
+    border-radius: 18px;
+    padding: 24px 20px;
+    text-align: center;
+    transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.3s ease;
+    animation: sol-slide-up 0.5s ease both;
+    animation-delay: calc(0.1s + var(--i) * 0.1s);
+}
+.sol-beneficio:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(10, 42, 67, 0.13);
+}
+.sol-beneficio-icono {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 15px;
+    color: #fff;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.sol-beneficio:hover .sol-beneficio-icono {
+    transform: scale(1.12) rotate(-6deg);
+}
+.sol-ico-azul { background: linear-gradient(135deg, #163b73, #0A2A43); }
+.sol-ico-verde { background: linear-gradient(135deg, #2ecc71, #27AE60); }
+.sol-ico-morado { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+.sol-beneficio h3 {
+    font-size: 15.5px;
+    font-weight: 700;
+    color: #0A2A43;
+    margin: 0 0 7px;
+}
+.sol-beneficio p {
+    font-size: 13px;
+    color: #6b7688;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Aviso importante */
+.sol-aviso {
+    display: flex;
+    gap: 16px;
+    background: linear-gradient(135deg, #fff8f1, #fff4 e9);
+    background: linear-gradient(135deg, #fff8f1, #fef6ec);
+    border: 1.5px solid #f5d5b0;
+    border-radius: 18px;
+    padding: 22px 24px;
+    margin-bottom: 28px;
+    animation: sol-slide-up 0.5s ease 0.4s both;
+}
+.sol-aviso-icono {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 13px;
+    color: #fff;
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    box-shadow: 0 6px 16px rgba(230, 126, 34, 0.35);
+    animation: sol-pulso-aviso 2.2s ease-in-out infinite;
+}
+@keyframes sol-pulso-aviso {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+.sol-aviso-texto h4 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #b9640f;
+    margin: 0 0 8px;
+}
+.sol-aviso-texto p {
+    font-size: 13.5px;
+    color: #7a5a33;
+    line-height: 1.6;
+    margin: 0 0 8px;
+}
+.sol-aviso-texto strong { color: #9a4f0c; }
+.sol-aviso-nota {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px !important;
+    color: #27AE60 !important;
+    font-weight: 600;
+    margin: 4px 0 0 !important;
+}
+
+/* Acciones */
+.sol-acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.sol-btn-cancelar {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 13px 22px;
+    background: #fff;
+    border: 1.5px solid #dde5ee;
+    border-radius: 12px;
+    color: #55637a;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.sol-btn-cancelar:hover:not(:disabled) {
+    border-color: #c3cfdd;
+    background: #f7f9fc;
+}
+.sol-btn-cancelar:disabled { opacity: 0.5; cursor: default; }
+
+.sol-btn-continuar {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 26px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0A2A43, #163b73);
+    color: #fff;
+    font-size: 14.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(10, 42, 67, 0.28);
+    transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.64, 1), box-shadow 0.25s ease;
+}
+.sol-btn-continuar:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(10, 42, 67, 0.4);
+}
+.sol-btn-continuar:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+.sol-btn-continuar:disabled { opacity: 0.7; cursor: default; }
+.sol-btn-continuar svg { transition: transform 0.25s ease; }
+.sol-btn-continuar:hover:not(:disabled) svg { transform: translateX(3px); }
+
+/* ===== FASE 2: FORMULARIO ===== */
+.sol-formulario {
+    background: #fff;
+    border: 1px solid #eef2f7;
+    border-radius: 22px;
+    padding: 30px;
+    box-shadow: 0 10px 40px rgba(10, 42, 67, 0.08);
+    animation: sol-fade-scale 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.sol-form-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding-bottom: 22px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #eef2f7;
+}
+.sol-form-cabecera-icono {
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    color: #fff;
+    background: linear-gradient(135deg, #27AE60, #2ecc71);
+    box-shadow: 0 8px 20px rgba(39, 174, 96, 0.32);
+    flex-shrink: 0;
+}
+.sol-form-cabecera h2 {
+    font-size: 20px;
+    font-weight: 800;
+    color: #0A2A43;
+    margin: 0 0 3px;
+}
+.sol-form-cabecera p {
+    font-size: 13.5px;
+    color: #6b7688;
+    margin: 0;
+}
+
+.sol-form-campos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 28px;
+}
+.sol-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    position: relative;
+    animation: sol-slide-up 0.4s ease both;
+}
+.sol-campo-full { grid-column: 1 / -1; }
+.sol-campo label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #37455c;
+}
+.sol-campo label svg { color: #163b73; }
+.sol-campo input,
+.sol-campo textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid #e3e9f0;
+    border-radius: 11px;
+    font-size: 14px;
+    color: #0A2A43;
+    font-family: inherit;
+    background: #fbfcfe;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.sol-campo textarea { resize: vertical; min-height: 96px; }
+.sol-campo input:focus,
+.sol-campo textarea:focus {
+    border-color: #27AE60;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(39, 174, 96, 0.1);
+}
+.sol-campo input::placeholder,
+.sol-campo textarea::placeholder { color: #a9b4c4; }
+.sol-contador {
+    position: absolute;
+    right: 4px;
+    bottom: -18px;
+    font-size: 11px;
+    color: #a9b4c4;
+    font-weight: 600;
+}
+
+/* ===== FASE 3: ÉXITO ===== */
+.sol-exito {
+    background: #fff;
+    border: 1px solid #eef2f7;
+    border-radius: 22px;
+    padding: 48px 32px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(10, 42, 67, 0.08);
+    animation: sol-fade-scale 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.sol-exito-icono {
+    width: 90px;
+    height: 90px;
+    margin: 0 auto 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #fff;
+    background: linear-gradient(135deg, #2ecc71, #27AE60);
+    box-shadow: 0 14px 36px rgba(39, 174, 96, 0.4);
+    animation: sol-exito-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes sol-exito-pop {
+    0% { transform: scale(0) rotate(-20deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+.sol-exito h2 {
+    font-size: 26px;
+    font-weight: 800;
+    color: #0A2A43;
+    margin: 0 0 12px;
+}
+.sol-exito > p {
+    font-size: 15px;
+    color: #55637a;
+    line-height: 1.6;
+    max-width: 480px;
+    margin: 0 auto 30px;
+}
+.sol-exito > p strong { color: #163b73; }
+
+.sol-exito-pasos {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+}
+.sol-exito-paso {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: 120px;
+}
+.sol-exito-num {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0A2A43, #163b73);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(10, 42, 67, 0.25);
+}
+.sol-exito-paso span:last-child {
+    font-size: 12px;
+    color: #6b7688;
+    line-height: 1.4;
+}
+.sol-exito-linea {
+    width: 30px;
+    height: 2px;
+    background: linear-gradient(90deg, #163b73, #27AE60);
+    border-radius: 2px;
+    opacity: 0.4;
+}
+
+/* ===== ANIMACIONES ===== */
+@keyframes sol-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes sol-slide-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sol-fade-scale {
+    from { opacity: 0; transform: scale(0.97) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.sol-girando { animation: sol-giro 0.9s linear infinite; }
+@keyframes sol-giro { to { transform: rotate(360deg); } }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 720px) {
+    .sol-beneficios { grid-template-columns: 1fr; }
+    .sol-form-campos { grid-template-columns: 1fr; }
+    .sol-hero h1 { font-size: 24px; }
+    .sol-acciones { flex-direction: column-reverse; }
+    .sol-btn-cancelar, .sol-btn-continuar { width: 100%; justify-content: center; }
+    .sol-exito-pasos { flex-direction: column; }
+    .sol-exito-linea { width: 2px; height: 20px; }
+}

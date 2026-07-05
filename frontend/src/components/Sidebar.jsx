@@ -1,13 +1,15 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Package, Warehouse, ShoppingCart, Factory,
-    MapPin, CreditCard, Sparkles, BarChart3, ShieldCheck, Settings, Tags, Store, Boxes
+    MapPin, CreditCard, Sparkles, BarChart3, ShieldCheck, Settings, Tags, Store, Boxes, Inbox, Building2
 } from 'lucide-react';
 import './Sidebar.css';
 
 /**
  * Menú lateral de navegación del panel administrativo.
  * Agrupa las secciones del sistema y resalta la ruta activa.
+ * El grupo "Plataforma" (Solicitudes, Empresas) solo se muestra al superadmin.
  */
 const SECCIONES = [
     {
@@ -61,7 +63,26 @@ const SECCIONES = [
     }
 ];
 
+// Secciones visibles solo para el superadmin (administración de la plataforma)
+const SECCIONES_SUPERADMIN = [
+    {
+        grupo: 'Plataforma',
+        items: [
+            { ruta: '/solicitudes', etiqueta: 'Solicitudes', icono: Inbox },
+            { ruta: '/empresas', etiqueta: 'Empresas', icono: Building2 }
+        ]
+    }
+];
+
 function Sidebar({ abierto }) {
+    const { usuario } = useAuth();
+    const esSuperAdmin = usuario?.rol === 'superadmin';
+
+    // Al superadmin le sumamos las secciones de plataforma
+    const secciones = esSuperAdmin
+        ? [...SECCIONES, ...SECCIONES_SUPERADMIN]
+        : SECCIONES;
+
     return (
         <aside className={`sidebar ${abierto ? 'sidebar-abierto' : ''}`}>
             <div className="sidebar-logo">
@@ -69,7 +90,7 @@ function Sidebar({ abierto }) {
             </div>
 
             <nav className="sidebar-nav">
-                {SECCIONES.map((seccion) => (
+                {secciones.map((seccion) => (
                     <div className="sidebar-grupo" key={seccion.grupo}>
                         <p className="sidebar-grupo-titulo">{seccion.grupo}</p>
                         {seccion.items.map((item) => {
