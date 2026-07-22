@@ -7,10 +7,14 @@ const authClienteService = {
     verificarCorreo: (correo, codigo) =>
         api.post('/auth/verify-email', { correo, codigo }),
 
-    // El origen 'marketplace' permite al backend bloquear el acceso de
-    // cuentas internas (negocio) a la zona de cliente.
+    // Login único para toda la app (cliente, vendedor, administrador,
+    // superadmin). Ya NO se manda origen: 'marketplace' — ese parámetro
+    // hacía que el backend rechazara con 403 a cualquier rol interno que
+    // intentara entrar por aquí. Ahora este mismo formulario sirve para
+    // todos; AuthCliente.jsx decide a dónde navegar según el rol real
+    // que devuelva el backend.
     login: (correo, password) =>
-        api.post('/auth/login', { correo, password, origen: 'marketplace' }),
+        api.post('/auth/login', { correo, password }),
 
     verificar2FA: (idUsuario, codigo) =>
         api.post('/auth/2fa/verify', { idUsuario, codigo }),

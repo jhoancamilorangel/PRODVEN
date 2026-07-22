@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -11,6 +12,10 @@ require('./src/config/redis');
 // Carga de asociaciones del módulo de inventario interno
 require('./src/models/inventario');
 
+// carga de asosiaciones del modulo de memsajeria
+require('./src/models/asociacionesMensajeria');
+
+const { inicializarSocket } = require('./src/config/socket');
 const errorHandler = require('./src/middlewares/errorHandler');
 
 // =====================================================
@@ -60,8 +65,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // RATE LIMITER GLOBAL (Portero)
 // =====================================================
 const limiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minuto
-    max: 300, // 300 peticiones por IP por minuto
+    windowMs: 1 * 60 * 1000,
+    max: 300,
     message: {
         success: false,
         message: 'Demasiadas peticiones, intenta de nuevo en un momento'
@@ -69,15 +74,8 @@ const limiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        // Los webhooks de pasarelas de pago NUNCA deben bloquearse:
-        // si PayU no recibe 200 a tiempo, reintenta, y perder esos
-        // reintentos por rate limit puede dejar un pago sin confirmar.
         if (req.path.startsWith('/api/webhooks')) return true;
-
-        // El refresh de token es lógica interna silenciosa del sistema,
-        // no debe competir por cupo con el uso real del usuario.
         if (req.path === '/api/auth/refresh') return true;
-
         return false;
     }
 });
@@ -115,7 +113,6 @@ app.use('/api/reportes', reporteRoutes);
 app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/solicitudes-negocio', solicitudNegocioRoutes);
 
-// Ruta de salud
 app.get('/api/health', (req, res) => {
     res.status(200).json({
         status: 'success',
@@ -130,6 +127,14 @@ app.get('/api/health', (req, res) => {
 app.use(errorHandler);
 
 // =====================================================
+// SERVIDOR HTTP + SOCKET.IO
+// =====================================================
+// Se envuelve Express en un servidor HTTP nativo para poder adjuntarle
+// Socket.io al MISMO puerto, en vez de levantar un servidor aparte.
+const httpServer = http.createServer(app);
+inicializarSocket(httpServer);
+
+// =====================================================
 // INICIAR SERVIDOR
 // =====================================================
 const startServer = async () => {
@@ -138,10 +143,11 @@ const startServer = async () => {
         console.log('✅ Conexión a MySQL (prodven_db) establecida con éxito.');
 
         const PORT = process.env.PORT || 3000;
-        app.listen(PORT, () => {
+        httpServer.listen(PORT, () => {
             console.log(`🚀 Servidor ejecutándose en el puerto ${PORT}`);
             console.log(`📍 URL local: http://localhost:${PORT}`);
             console.log(`🩺 Health check: http://localhost:${PORT}/api/health`);
+            console.log(`🔌 Socket.io escuchando en el mismo puerto`);
         });
     } catch (error) {
         console.error('❌ Error al conectar con la base de datos:', error);

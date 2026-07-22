@@ -21,7 +21,7 @@ const validarCrearConversacion = [
 
     body('tipo')
         .optional()
-        .isIn(['interna', 'cliente']).withMessage('Tipo de conversación no válido'),
+        .isIn(['interna', 'cliente', `soporte`]).withMessage('Tipo de conversación no válido'),
 
     body('asunto')
         .optional()

@@ -1,30 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import notificacionService from '../../services/notificacionService';
+import socketService from '../../services/socketService';
 import {
     Bell, ShoppingBag, CreditCard, Boxes, MessageCircle,
     Tag, Info, CheckCheck, Loader2, BellOff
 } from 'lucide-react';
 import './CampanaNotificaciones.css';
 
-/**
- * Campana de Notificaciones (reutilizable)
- *
- * Se usa igual en el marketplace (cliente) y en el panel (negocio).
- * El backend filtra por el usuario del token, así que cada quien ve
- * solo lo suyo. api.js resuelve el token según la zona automáticamente.
- *
- * - Badge con el conteo de no leídas.
- * - Polling cada 60s del contador (ligero, no dispara el rate limiter).
- * - Al abrir el panel, carga la lista completa.
- * - Clic en una notificación: la marca como leída y navega a su urlAccion.
- * - Botón para marcar todas como leídas.
- *
- * @param {string} zona - 'cliente' | 'panel' (reservado para ajustes finos)
- */
-const INTERVALO_POLLING = 60000; // 60s
+const INTERVALO_POLLING = 60000; // Respaldo: Socket.io hace el trabajo en vivo
 
-// Config visual por tipo de notificación (ícono + clase de color)
 const CONFIG_TIPO = {
     pedido:    { Icono: ShoppingBag,   clase: 'noti-chip-pedido' },
     pago:      { Icono: CreditCard,    clase: 'noti-chip-pago' },
@@ -34,9 +19,6 @@ const CONFIG_TIPO = {
     sistema:   { Icono: Info,          clase: 'noti-chip-sistema' }
 };
 
-/**
- * Convierte una fecha en texto relativo: "hace 5 min", "hace 2 h", etc.
- */
 const tiempoRelativo = (fecha) => {
     if (!fecha) return '';
     const ahora = new Date();
@@ -61,18 +43,17 @@ function CampanaNotificaciones({ zona = 'cliente' }) {
     const [cargando, setCargando] = useState(false);
     const [marcandoTodas, setMarcandoTodas] = useState(false);
     const panelRef = useRef(null);
+    const abiertoRef = useRef(false);
 
-    // ---- Contador de no leídas (para el badge) ----
     const cargarConteo = useCallback(async () => {
         try {
             const res = await notificacionService.contarNoLeidas();
             setNoLeidas(res.data?.data?.noLeidas || 0);
         } catch {
-            // Silencioso: si falla el conteo, no rompemos el header
+            // Silencioso
         }
     }, []);
 
-    // ---- Lista completa (al abrir el panel) ----
     const cargarLista = useCallback(async () => {
         setCargando(true);
         try {
@@ -85,14 +66,38 @@ function CampanaNotificaciones({ zona = 'cliente' }) {
         }
     }, []);
 
-    // Polling del conteo mientras el componente esté montado
+    // Polling de respaldo (baja frecuencia, solo por si el socket se cae)
     useEffect(() => {
         cargarConteo();
         const id = setInterval(cargarConteo, INTERVALO_POLLING);
         return () => clearInterval(id);
     }, [cargarConteo]);
 
-    // Cerrar el panel al hacer clic fuera
+    // Refresco inmediato disparado por acciones locales (ej. al leer un chat)
+    useEffect(() => {
+        const alActualizar = () => {
+            cargarConteo();
+            if (abiertoRef.current) cargarLista();
+        };
+        window.addEventListener('notificaciones-actualizadas', alActualizar);
+        return () => window.removeEventListener('notificaciones-actualizadas', alActualizar);
+    }, [cargarConteo, cargarLista]);
+
+    // Tiempo real: el backend avisa por socket cuando algo cambió en las
+    // notificaciones de este usuario (nueva, actualizada, o leída).
+    useEffect(() => {
+        const socket = socketService.obtenerSocket();
+        if (!socket) return undefined;
+
+        const alActualizar = () => {
+            cargarConteo();
+            if (abiertoRef.current) cargarLista();
+        };
+
+        socket.on('notificacion_actualizada', alActualizar);
+        return () => socket.off('notificacion_actualizada', alActualizar);
+    }, [cargarConteo, cargarLista]);
+
     useEffect(() => {
         const alClicFuera = (e) => {
             if (panelRef.current && !panelRef.current.contains(e.target)) {
@@ -106,13 +111,12 @@ function CampanaNotificaciones({ zona = 'cliente' }) {
     const alternarPanel = () => {
         const nuevoEstado = !abierto;
         setAbierto(nuevoEstado);
-        if (nuevoEstado) cargarLista(); // cargar solo al abrir
+        abiertoRef.current = nuevoEstado;
+        if (nuevoEstado) cargarLista();
     };
 
-    // Clic en una notificación: marcar leída (optimista) + navegar
     const abrirNotificacion = async (noti) => {
         if (!noti.leida) {
-            // Actualización optimista de UI
             setNotificaciones((prev) =>
                 prev.map((n) =>
                     n.idNotificacion === noti.idNotificacion ? { ...n, leida: true } : n
@@ -123,12 +127,12 @@ function CampanaNotificaciones({ zona = 'cliente' }) {
             try {
                 await notificacionService.marcarLeida(noti.idNotificacion);
             } catch {
-                // Si falla, recargamos el conteo real para no desincronizar
                 cargarConteo();
             }
         }
 
         setAbierto(false);
+        abiertoRef.current = false;
         if (noti.urlAccion) navigate(noti.urlAccion);
     };
 
@@ -136,7 +140,6 @@ function CampanaNotificaciones({ zona = 'cliente' }) {
         if (noLeidas === 0 || marcandoTodas) return;
         setMarcandoTodas(true);
 
-        // Optimista
         setNotificaciones((prev) => prev.map((n) => ({ ...n, leida: true })));
         setNoLeidas(0);
 
@@ -154,7 +157,6 @@ function CampanaNotificaciones({ zona = 'cliente' }) {
 
     return (
         <div className={`noti ${zona === 'panel' ? 'noti-zona-panel' : 'noti-zona-cliente'}`} ref={panelRef}>
-            {/* Botón campana */}
             <button
                 className={`noti-btn ${abierto ? 'noti-btn-activo' : ''} ${hayNoLeidas ? 'noti-btn-alerta' : ''}`}
                 onClick={alternarPanel}
@@ -168,7 +170,6 @@ function CampanaNotificaciones({ zona = 'cliente' }) {
                 )}
             </button>
 
-            {/* Panel desplegable */}
             {abierto && (
                 <div className="noti-panel">
                     <div className="noti-panel-cabecera">

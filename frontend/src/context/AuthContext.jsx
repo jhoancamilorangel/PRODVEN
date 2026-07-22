@@ -1,57 +1,62 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import socketService from '../services/socketService';
 
 /**
  * Contexto de Autenticación de ProdVen.
- *
- * Es el "cerebro" de la sesión: mantiene quién está logueado y
- * ofrece las funciones de login y logout a toda la aplicación.
- * Cualquier componente puede saber el usuario actual o cerrar sesión
- * sin tener que pasar datos manualmente de pantalla en pantalla.
+ * Centraliza las llaves dinámicas idénticas a las de api.js
  */
-
 const AuthContext = createContext(null);
 
-/**
- * Proveedor que envuelve la app y entrega el estado de autenticación.
- */
+const RUTAS_CLIENTE = [
+    '/marketplace', '/tienda', '/producto', '/carrito', 
+    '/checkout', '/cuenta', '/mis-compras', '/mi-perfil', 
+    '/mis-pedidos', '/vender', '/soporte'
+];
+
+// Función espejo de api.js para saber qué llaves leer/escribir
+const obtenerLlavesActuales = () => {
+    const tieneTokenCliente = !!sessionStorage.getItem('prodven_cli_token');
+    return tieneTokenCliente
+        ? { token: 'prodven_cli_token', refresh: 'prodven_cli_refresh', usuario: 'prodven_cli_usuario' }
+        : { token: 'prodven_token', refresh: 'prodven_refresh', usuario: 'prodven_usuario' };
+};
+
 export function AuthProvider({ children }) {
     const [usuario, setUsuario] = useState(null);
     const [cargando, setCargando] = useState(true);
 
     /**
-     * Al arrancar la app, revisa si ya hay una sesión guardada
-     * (el usuario ya se había logueado antes y no cerró sesión).
+     * Revisa la sesión al arrancar usando las llaves dinámicas correctas
      */
     useEffect(() => {
-        const usuarioGuardado = localStorage.getItem('prodven_usuario');
+        const l = obtenerLlavesActuales();
+        const usuarioGuardado = sessionStorage.getItem(l.usuario);
+        
         if (usuarioGuardado) {
             try {
                 setUsuario(JSON.parse(usuarioGuardado));
             } catch {
-                localStorage.removeItem('prodven_usuario');
+                sessionStorage.removeItem(l.usuario);
             }
         }
         setCargando(false);
     }, []);
 
     /**
-     * Inicia sesión: llama al backend, guarda token y usuario.
-     * @returns {object} { exito, mensaje }
+     * Inicia sesión guardando en las llaves dinámicas según la zona
      */
     const login = async (correo, contrasena) => {
         try {
             const respuesta = await api.post('/auth/login', { correo, password: contrasena });
-
             const { accessToken, refreshToken, usuario: datosUsuario } = respuesta.data.data;
 
-            // Guardar los tokens y el usuario en el navegador
-            localStorage.setItem('prodven_token', accessToken);
-            localStorage.setItem('prodven_refresh', refreshToken);
-            localStorage.setItem('prodven_usuario', JSON.stringify(datosUsuario));
+            const l = obtenerLlavesActuales();
+            sessionStorage.setItem(l.token, accessToken);
+            sessionStorage.setItem(l.refresh, refreshToken);
+            sessionStorage.setItem(l.usuario, JSON.stringify(datosUsuario));
 
             setUsuario(datosUsuario);
-
             return { exito: true };
         } catch (error) {
             const mensaje = error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.';
@@ -60,13 +65,11 @@ export function AuthProvider({ children }) {
     };
 
     /**
-     * Cierra sesión: avisa al backend para revocar los tokens en BD
-     * (access y refresh), y luego limpia todo del navegador.
-     * Si la llamada al backend falla (ej. sin internet), se limpia
-     * el navegador igual para no dejar al usuario atrapado.
+     * Cierra sesión limpiando las llaves dinámicas de la zona actual
      */
     const logout = async () => {
-        const refreshToken = localStorage.getItem('prodven_refresh');
+        const l = obtenerLlavesActuales();
+        const refreshToken = sessionStorage.getItem(l.refresh);
 
         try {
             await api.post('/auth/logout', { refreshToken });
@@ -74,9 +77,10 @@ export function AuthProvider({ children }) {
             console.error('Error al cerrar sesión en el servidor:', error);
         }
 
-        localStorage.removeItem('prodven_token');
-        localStorage.removeItem('prodven_refresh');
-        localStorage.removeItem('prodven_usuario');
+        sessionStorage.removeItem(l.token);
+        sessionStorage.removeItem(l.refresh);
+        sessionStorage.removeItem(l.usuario);
+        socketService.cerrarSocket();
         setUsuario(null);
     };
 
@@ -95,10 +99,6 @@ export function AuthProvider({ children }) {
     );
 }
 
-/**
- * Hook para usar el contexto de autenticación fácilmente
- * desde cualquier componente: const { usuario, login, logout } = useAuth();
- */
 export function useAuth() {
     const contexto = useContext(AuthContext);
     if (contexto === null) {

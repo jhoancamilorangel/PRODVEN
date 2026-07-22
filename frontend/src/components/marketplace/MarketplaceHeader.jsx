@@ -14,11 +14,11 @@ function MarketplaceHeader({ busqueda, onBuscar }) {
     const [usuario, setUsuario] = useState(null);
     const menuRef = useRef(null);
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
+    const estaLogueado = () => !!sessionStorage.getItem('prodven_cli_token');
 
     useEffect(() => {
         // Cargar usuario del cliente si hay sesión
-        const raw = localStorage.getItem('prodven_cli_usuario');
+        const raw = sessionStorage.getItem('prodven_cli_usuario');
         if (raw) {
             try { setUsuario(JSON.parse(raw)); } catch { setUsuario(null); }
         }
@@ -57,7 +57,7 @@ function MarketplaceHeader({ busqueda, onBuscar }) {
     };
 
    const cerrarSesion = async () => {
-    const refreshToken = localStorage.getItem('prodven_cli_refresh');
+    const refreshToken = sessionStorage.getItem('prodven_cli_refresh');
 
     try {
         await authClienteService.logout(refreshToken);
@@ -65,9 +65,9 @@ function MarketplaceHeader({ busqueda, onBuscar }) {
         console.error('Error al cerrar sesión en el servidor:', error);
     }
 
-    localStorage.removeItem('prodven_cli_token');
-    localStorage.removeItem('prodven_cli_refresh');
-    localStorage.removeItem('prodven_cli_usuario');
+    sessionStorage.removeItem('prodven_cli_token');
+    sessionStorage.removeItem('prodven_cli_refresh');
+    sessionStorage.removeItem('prodven_cli_usuario');
     setMenuAbierto(false);
     navigate('/marketplace');
     // Recargar para limpiar cualquier estado en memoria

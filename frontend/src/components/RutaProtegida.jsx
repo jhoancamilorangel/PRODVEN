@@ -3,25 +3,38 @@ import { useAuth } from '../context/AuthContext';
 import { ShieldAlert } from 'lucide-react';
 
 /**
- * Protege las rutas del panel administrativo.
- * - Si no hay sesión, redirige al login.
- * - Si hay sesión pero el rol es 'cliente', bloquea el acceso:
- *   el panel es solo para roles de negocio (admin, vendedor, etc.).
- *   Un cliente del marketplace no tiene nada que hacer aquí.
+ * Protege las rutas del panel administrativo de forma inteligente.
+ * Revisa el sessionStorage de administración ('prodven_usuario') de manera directa
+ * para evitar que las pestañas de clientes interfieran en las pruebas en paralelo.
  */
 function RutaProtegida({ children }) {
-    const { estaAutenticado, usuario, cargando } = useAuth();
+    const { cargando } = useAuth();
+
+    // En lugar de usar el estado global unificado que puede fluctuar por la URL de la pestaña,
+    // leemos directamente el almacenamiento correspondiente a la zona administrativa.
+    const tokenAdmin = sessionStorage.getItem('prodven_token');
+    const usuarioAdminRaw = sessionStorage.getItem('prodven_usuario');
+    
+    let usuarioAdmin = null;
+    if (usuarioAdminRaw) {
+        try {
+            usuarioAdmin = JSON.parse(usuarioAdminRaw);
+        } catch (e) {
+            usuarioAdmin = null;
+        }
+    }
 
     if (cargando) {
         return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando...</div>;
     }
 
-    if (!estaAutenticado) {
+    // Si no hay token de administrador en el sessionStorage de esta pestaña, al login administrativo
+    if (!tokenAdmin || !usuarioAdmin) {
         return <Navigate to="/login" replace />;
     }
 
-    // Un cliente NO puede entrar al panel administrativo
-    if (usuario && usuario.rol === 'cliente') {
+    // Si el rol guardado en esta zona es cliente, bloquea el acceso
+    if (usuarioAdmin.rol === 'cliente') {
         return (
             <div style={{
                 minHeight: '100vh',

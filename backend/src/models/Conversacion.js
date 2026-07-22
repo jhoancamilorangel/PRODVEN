@@ -12,15 +12,15 @@ const Conversacion = sequelize.define('Conversacion', {
     idEmpresa: {
         type: DataTypes.CHAR(36),
         field: 'id_empresa',
-        allowNull: false,
-        comment: 'Empresa dueña de la conversación (multi-tenancy)'
+        allowNull: true,
+        comment: 'Empresa dueña de la conversación. NULL para soporte de plataforma (tipo=soporte)'
     },
     tipo: {
-        type: DataTypes.ENUM('interna', 'cliente'),
+        type: DataTypes.ENUM('interna', 'cliente', 'soporte'),
         field: 'tipo',
         allowNull: false,
         defaultValue: 'cliente',
-        comment: 'interna: entre personal; cliente: con un cliente'
+        comment: 'interna: entre personal; cliente: con un cliente; soporte: con superadmin de ProdVen'
     },
     asunto: {
         type: DataTypes.STRING(255),

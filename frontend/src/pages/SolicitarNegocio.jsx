@@ -28,7 +28,7 @@ function SolicitarNegocio() {
         descripcion: ''
     });
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
+    const estaLogueado = () => !!sessionStorage.getItem('prodven_cli_token');
 
     // Solo accesible con sesión de cliente
     useEffect(() => {

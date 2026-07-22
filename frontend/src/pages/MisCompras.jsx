@@ -33,7 +33,7 @@ function MisCompras() {
     const [cargandoDetalle, setCargandoDetalle] = useState(false);
     const [cancelando, setCancelando] = useState(false);
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
+    const estaLogueado = () => !!sessionStorage.getItem('prodven_cli_token');
 
     const cargar = useCallback(async () => {
         if (!estaLogueado()) {

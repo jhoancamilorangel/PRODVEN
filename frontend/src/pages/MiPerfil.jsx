@@ -26,7 +26,7 @@ function MiPerfil() {
     const [verPass, setVerPass] = useState({ actual: false, nueva: false, confirmar: false });
     const [cambiandoPass, setCambiandoPass] = useState(false);
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
+    const estaLogueado = () => !!sessionStorage.getItem('prodven_cli_token');
 
     const cargar = useCallback(async () => {
         if (!estaLogueado()) {
@@ -79,13 +79,13 @@ function MiPerfil() {
             });
             toast.exito('Perfil actualizado.');
             // Actualizar el usuario guardado para que el header muestre el nombre nuevo
-            const raw = localStorage.getItem('prodven_cli_usuario');
+            const raw = sessionStorage.getItem('prodven_cli_usuario');
             if (raw) {
                 try {
                     const u = JSON.parse(raw);
                     u.nombres = form.nombres.trim();
                     u.apellidos = form.apellidos.trim();
-                    localStorage.setItem('prodven_cli_usuario', JSON.stringify(u));
+                    sessionStorage.setItem('prodven_cli_usuario', JSON.stringify(u));
                 } catch { /* nada */ }
             }
             setPerfil({ ...perfil, ...form });
@@ -122,7 +122,7 @@ function MiPerfil() {
     };
 
     const cerrarSesion = async () => {
-    const refreshToken = localStorage.getItem('prodven_cli_refresh');
+    const refreshToken = sessionStorage.getItem('prodven_cli_refresh');
 
     try {
         await authClienteService.logout(refreshToken);
@@ -130,9 +130,9 @@ function MiPerfil() {
         console.error('Error al cerrar sesión en el servidor:', error);
     }
 
-    localStorage.removeItem('prodven_cli_token');
-    localStorage.removeItem('prodven_cli_refresh');
-    localStorage.removeItem('prodven_cli_usuario');
+    sessionStorage.removeItem('prodven_cli_token');
+    sessionStorage.removeItem('prodven_cli_refresh');
+    sessionStorage.removeItem('prodven_cli_usuario');
     navigate('/marketplace');
     setTimeout(() => window.location.reload(), 50);
 };

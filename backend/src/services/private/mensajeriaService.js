@@ -1,67 +1,125 @@
 const Conversacion = require('../../models/Conversacion');
 const ParticipanteConversacion = require('../../models/ParticipanteConversacion');
 const Mensaje = require('../../models/Mensaje');
+const Usuario = require('../../models/Usuario');
+const notificacionService = require('./notificacionService');
+const { obtenerIO } = require('../../config/socket');
 const sequelize = require('../../config/database');
 const logger = require('../../config/logger');
 const { Op } = require('sequelize');
-
-/**
- * Servicio de Mensajería (capa REST)
- *
- * Maneja conversaciones y mensajes guardados en base de datos:
- *  - Crear conversaciones y agregar participantes
- *  - Enviar mensajes (actualizando el preview del último mensaje)
- *  - Listar conversaciones de un usuario y mensajes de una conversación
- *  - Marcar mensajes como leídos
- *
- * El tiempo real (Socket.io) se integrará en una fase futura junto al
- * frontend. Por ahora, toda la mensajería funciona por REST y queda
- * persistida, lista para que el frontend la consuma y luego la dinamice.
- */
 
 // =====================================================
 // CONVERSACIONES
 // =====================================================
 
-/**
- * Crea una conversación y agrega a sus participantes
- *
- * @param {string} idEmpresa - Empresa
- * @param {object} datos - { tipo, asunto, participantes: [{ idUsuario, rol }] }
- * @param {string} idCreador - Usuario que crea la conversación
- * @returns {Promise<object>} { exito, conversacion, mensaje }
- */
 const crearConversacion = async (idEmpresa, datos, idCreador) => {
     const transaction = await sequelize.transaction();
 
     try {
-        const conversacion = await Conversacion.create({
-            idEmpresa,
-            tipo: datos.tipo || 'cliente',
-            asunto: datos.asunto || null,
-            estado: 'activa'
-        }, { transaction });
-
-        // Lista de participantes a agregar
-        const participantes = datos.participantes || [];
-
-        // Asegurar que el creador esté entre los participantes
+        const participantes = [];
+        const tipo = datos.tipo || 'cliente';
+        // Soporte SIEMPRE es global, sin importar si el creador tiene una
+        // empresa asociada (req.tenantId). Antes se colaba la empresa del
+        // creador aquí, rompiendo la idea de "un solo canal de soporte".
+        const idEmpresaFinal = tipo === 'soporte' ? null : idEmpresa;
+        const asunto = datos.asunto || (tipo === 'soporte' ? 'Soporte ProdVen' : null);
         const creadorIncluido = participantes.some(p => p.idUsuario === idCreador);
         if (!creadorIncluido) {
             participantes.push({ idUsuario: idCreador, rol: datos.rolCreador || 'cliente' });
         }
 
+        if (tipo === 'cliente') {
+            const personalTienda = await Usuario.findAll({
+                where: {
+                    idEmpresa,
+                    rol: { [Op.in]: ['administrador', 'vendedor'] },
+                    activo: true,
+                    eliminado: false
+                },
+                attributes: ['idUsuario'],
+                transaction
+            });
+
+            personalTienda.forEach((u) => {
+                const yaIncluido = participantes.some(p => p.idUsuario === u.idUsuario);
+                if (!yaIncluido) {
+                    participantes.push({ idUsuario: u.idUsuario, rol: 'vendedor' });
+                }
+            });
+        }
+
+        // Soporte: se auto-agrega a TODOS los superadmin (por rol, no por
+        // persona), sin filtrar por empresa. Cualquier usuario que tenga
+        // rol=superadmin en la BD ve y puede responder cualquier ticket.
+        if (tipo === 'soporte') {
+            const superadmins = await Usuario.findAll({
+                where: { rol: 'superadmin', activo: true, eliminado: false },
+                attributes: ['idUsuario'],
+                transaction
+            });
+
+            superadmins.forEach((u) => {
+                const yaIncluido = participantes.some(p => p.idUsuario === u.idUsuario);
+                if (!yaIncluido) {
+                    participantes.push({ idUsuario: u.idUsuario, rol: 'superadmin' });
+                }
+            });
+        }
+
+        // Para soporte, buscamos por el creador siendo participante con un
+        // rol distinto de superadmin — así nunca "reutilizamos" por error
+        // uno de los tickets huérfanos que un superadmin pudo haber creado
+        // sobre sí mismo, y siempre encontramos el ticket real de esa persona.
+        const whereParticipante = tipo === 'soporte'
+            ? { idUsuario: idCreador, rol: { [Op.ne]: 'superadmin' } }
+            : { idUsuario: idCreador };
+
+        const conversacionExistente = await Conversacion.findOne({
+            where: {
+                idEmpresa: idEmpresaFinal,
+                tipo,
+                estado: 'activa',
+                asunto
+            },
+            include: [
+                {
+                    model: ParticipanteConversacion,
+                    as: 'participantes',
+                    where: whereParticipante,
+                    required: true
+                }
+            ],
+            transaction
+        });
+
+        if (conversacionExistente) {
+            await transaction.commit();
+            return {
+                exito: true,
+                conversacion: conversacionExistente.datosCompletos(),
+                mensaje: 'Conversación existente reutilizada'
+            };
+        }
+
+        const conversacion = await Conversacion.create({
+            idEmpresa: idEmpresaFinal,
+            tipo,
+            asunto,
+            estado: 'activa'
+        }, { transaction });
+
         for (const part of participantes) {
             await ParticipanteConversacion.create({
                 idConversacion: conversacion.idConversacion,
                 idUsuario: part.idUsuario,
-                rol: part.rol || 'cliente'
+                rol: part.rol || 'cliente',
+                fechaUltimoVisto: null
             }, { transaction });
         }
 
         await transaction.commit();
 
-        logger.info(`Conversación creada: ${conversacion.idConversacion} en empresa ${idEmpresa}`);
+        logger.info(`Conversación creada: ${conversacion.idConversacion} (tipo: ${tipo})`);
 
         return {
             exito: true,
@@ -75,9 +133,6 @@ const crearConversacion = async (idEmpresa, datos, idCreador) => {
     }
 };
 
-/**
- * Verifica si un usuario es participante de una conversación
- */
 const esParticipante = async (idConversacion, idUsuario) => {
     const participante = await ParticipanteConversacion.findOne({
         where: { idConversacion, idUsuario }
@@ -86,10 +141,14 @@ const esParticipante = async (idConversacion, idUsuario) => {
 };
 
 /**
- * Lista las conversaciones en las que participa un usuario
+ * @param {string} idUsuario
+ * @param {object} filtros - { idEmpresa, tipo } ambos opcionales. Sin
+ *   idEmpresa: no filtra por empresa (necesario para soporte, donde la
+ *   conversación no pertenece a ninguna). Sin tipo: trae todos los tipos.
  */
-const listarConversacionesUsuario = async (idUsuario, idEmpresa) => {
-    // Buscar las conversaciones donde el usuario es participante
+const listarConversacionesUsuario = async (idUsuario, filtros = {}) => {
+    const { idEmpresa, tipo } = filtros;
+
     const participaciones = await ParticipanteConversacion.findAll({
         where: { idUsuario }
     });
@@ -100,31 +159,118 @@ const listarConversacionesUsuario = async (idUsuario, idEmpresa) => {
         return { conversaciones: [] };
     }
 
+    const whereConversacion = {
+        idConversacion: { [Op.in]: idsConversaciones },
+        estado: 'activa'
+    };
+    if (idEmpresa) whereConversacion.idEmpresa = idEmpresa;
+    if (tipo) whereConversacion.tipo = tipo;
+
     const conversaciones = await Conversacion.findAll({
-        where: {
-            idConversacion: { [Op.in]: idsConversaciones },
-            idEmpresa,
-            activo: true
-        },
-        order: [['fecha_ultimo_mensaje', 'DESC']]
+        where: whereConversacion,
+        order: [['fechaUltimoMensaje', 'DESC']]
     });
 
-    return { conversaciones: conversaciones.map(c => c.datosCompletos()) };
+    const participacionMap = new Map(
+        participaciones.map(p => [p.idConversacion, p])
+    );
+
+    const conversacionesEnriquecidas = await Promise.all(
+        conversaciones.map(async (c) => {
+            const part = participacionMap.get(c.idConversacion);
+
+            const noLeidos = await Mensaje.count({
+                where: {
+                    idConversacion: c.idConversacion,
+                    idRemitente: { [Op.ne]: idUsuario },
+                    leido: false
+                }
+            });
+
+            // Solo para soporte: identifica quién es el solicitante (el
+            // participante que NO es el usuario actual), para que el
+            // panel de superadmin nunca muestre mensajes sin saber de
+            // quién vienen.
+            // Identifica al "otro lado" de la conversación con datos reales
+            // de la BD, en vez de parsear el campo asunto (que en 'cliente'
+            // guarda el nombre de la TIENDA, no del cliente que escribe).
+            let solicitante = null;
+            if (c.tipo === 'soporte') {
+                const otroParticipante = await ParticipanteConversacion.findOne({
+                    where: { idConversacion: c.idConversacion, rol: { [Op.ne]: 'superadmin' } }
+                }); 
+
+                if (otroParticipante) {
+                    const usuarioSolicitante = await Usuario.findByPk(otroParticipante.idUsuario, {
+                        attributes: ['idUsuario', 'nombres', 'apellidos', 'correo', 'rol']
+                    });
+                    if (usuarioSolicitante) {
+                        solicitante = {
+                            idUsuario: usuarioSolicitante.idUsuario,
+                            nombres: usuarioSolicitante.nombres,
+                            apellidos: usuarioSolicitante.apellidos,
+                            correo: usuarioSolicitante.correo,
+                            rol: usuarioSolicitante.rol
+                        };
+                    }
+                }
+            
+            } else if (c.tipo === 'cliente') {
+                const otroParticipante = await ParticipanteConversacion.findOne({
+                    where: { idConversacion: c.idConversacion, rol: 'cliente' }
+                });
+                if (otroParticipante) {
+                    const usuarioSolicitante = await Usuario.findByPk(otroParticipante.idUsuario, {
+                        attributes: ['idUsuario', 'nombres', 'apellidos', 'correo', 'rol']
+                    });
+                    if (usuarioSolicitante) {
+                        solicitante = {
+                            idUsuario: usuarioSolicitante.idUsuario,
+                            nombres: usuarioSolicitante.nombres,
+                            apellidos: usuarioSolicitante.apellidos,
+                            correo: usuarioSolicitante.correo,
+                            rol: usuarioSolicitante.rol
+                        };
+                    }
+                }
+            }
+
+           // Un ticket de soporte sin solicitante real (solo superadmins
+            // adentro) es un ticket huérfano/de prueba — se oculta siempre,
+            // sin importar si quedó basura en la base de datos.
+            if (c.tipo === 'soporte' && !solicitante) {
+                return null;
+            }
+
+            return {
+                ...c.datosCompletos(),
+                noLeidos,
+                tieneNoLeidos: noLeidos > 0,
+                fechaUltimoVisto: part?.fechaUltimoVisto || null,
+                solicitante
+            };
+        })
+    );
+
+    return { conversaciones: conversacionesEnriquecidas.filter(Boolean) };
 };
 
 /**
- * Obtiene una conversación si el usuario es participante
+ * idEmpresa es opcional: si se pasa, se exige coincidencia exacta (chats
+ * de tienda). Si no se pasa (soporte), no se filtra por empresa —
+ * esParticipante ya garantiza el control de acceso.
  */
-const obtenerConversacion = async (idConversacion, idUsuario, idEmpresa) => {
+const obtenerConversacion = async (idConversacion, idUsuario, idEmpresa = null) => {
     const participa = await esParticipante(idConversacion, idUsuario);
 
     if (!participa) {
         return { exito: false, mensaje: 'No tienes acceso a esta conversación' };
     }
 
-    const conversacion = await Conversacion.findOne({
-        where: { idConversacion, idEmpresa }
-    });
+    const where = { idConversacion };
+    if (idEmpresa) where.idEmpresa = idEmpresa;
+
+    const conversacion = await Conversacion.findOne({ where });
 
     if (!conversacion) {
         return { exito: false, mensaje: 'Conversación no encontrada' };
@@ -145,16 +291,7 @@ const obtenerConversacion = async (idConversacion, idUsuario, idEmpresa) => {
 // MENSAJES
 // =====================================================
 
-/**
- * Envía un mensaje en una conversación
- *
- * @param {string} idConversacion - Conversación destino
- * @param {string} idRemitente - Usuario que envía
- * @param {object} datos - { contenido, tipoContenido, urlArchivo }
- * @returns {Promise<object>} { exito, mensaje, datosMensaje }
- */
 const enviarMensaje = async (idConversacion, idRemitente, datos) => {
-    // Verificar que el remitente sea participante
     const participa = await esParticipante(idConversacion, idRemitente);
     if (!participa) {
         return { exito: false, mensaje: 'No puedes enviar mensajes a esta conversación' };
@@ -171,10 +308,10 @@ const enviarMensaje = async (idConversacion, idRemitente, datos) => {
             urlArchivo: datos.urlArchivo || null
         }, { transaction });
 
-        // Actualizar el preview del último mensaje en la conversación
         const conversacion = await Conversacion.findByPk(idConversacion, { transaction });
+        let participantesRestantes = [];
+
         if (conversacion) {
-            // Para el preview, si es texto usa el contenido; si no, una etiqueta
             const preview = (datos.tipoContenido && datos.tipoContenido !== 'texto')
                 ? `[${datos.tipoContenido}]`
                 : datos.contenido.substring(0, 200);
@@ -182,14 +319,51 @@ const enviarMensaje = async (idConversacion, idRemitente, datos) => {
             conversacion.ultimoMensaje = preview;
             conversacion.fechaUltimoMensaje = new Date();
             await conversacion.save({ transaction });
+
+            participantesRestantes = await ParticipanteConversacion.findAll({
+                where: { idConversacion, idUsuario: { [Op.ne]: idRemitente } },
+                transaction
+            });
         }
 
         await transaction.commit();
 
         logger.info(`Mensaje enviado en conversación ${idConversacion} por ${idRemitente}`);
 
-        // NOTA: aquí, en la fase de tiempo real, se emitirá el evento Socket.io
-        // io.to(idConversacion).emit('mensaje_nuevo', mensaje.datosCompletos());
+        const io = obtenerIO();
+        if (io) {
+            io.to(`conversacion:${idConversacion}`).emit('mensaje_nuevo', mensaje.datosCompletos());
+        }
+
+        if (conversacion && participantesRestantes.length > 0) {
+            const remitente = await Usuario.findByPk(idRemitente);
+            const nombreRemitente = remitente ? `${remitente.nombres}`.trim() : 'Alguien';
+            const previewNotificacion = mensaje.contenido.length > 80
+                ? `${mensaje.contenido.substring(0, 80)}...`
+                : mensaje.contenido;
+
+            participantesRestantes.forEach((part) => {
+                let urlAccion;
+                if (conversacion.tipo === 'soporte') {
+                    if (part.rol === 'superadmin') urlAccion = `/soporte-admin/${idConversacion}`;
+                    else if (part.rol === 'cliente') urlAccion = `/soporte/${idConversacion}`;
+                    else urlAccion = `/soporte-negocio/${idConversacion}`;
+                } else {
+                    urlAccion = part.rol === 'cliente'
+                        ? `/mis-compras/chat/${conversacion.idEmpresa}/${idConversacion}`
+                        : `/mensajes/${idConversacion}`;
+                }
+
+                notificacionService.crearOActualizarNotificacionMensaje({
+                    idUsuario: part.idUsuario,
+                    idEmpresa: conversacion.idEmpresa,
+                    titulo: `Nuevo mensaje de ${nombreRemitente}`,
+                    mensaje: previewNotificacion,
+                    tipo: 'mensaje',
+                    urlAccion
+                });
+            });
+        }
 
         return {
             exito: true,
@@ -203,10 +377,6 @@ const enviarMensaje = async (idConversacion, idRemitente, datos) => {
     }
 };
 
-/**
- * Lista los mensajes de una conversación (el historial del chat)
- * Solo si el usuario es participante
- */
 const listarMensajes = async (idConversacion, idUsuario, filtros = {}) => {
     const participa = await esParticipante(idConversacion, idUsuario);
     if (!participa) {
@@ -215,14 +385,32 @@ const listarMensajes = async (idConversacion, idUsuario, filtros = {}) => {
 
     const pagina = parseInt(filtros.pagina, 10) || 1;
     const limit = parseInt(filtros.limit, 10) || 50;
-    const offset = (pagina - 1) * limit;
 
-    const { count, rows } = await Mensaje.findAndCountAll({
-        where: { idConversacion, eliminado: false },
-        order: [['fecha_creacion', 'ASC']],
-        limit,
-        offset
-    });
+    const count = await Mensaje.count({ where: { idConversacion, eliminado: false } });
+
+    // Para la página 1 (la vista normal del chat), traemos los últimos
+    // limit mensajes en orden cronológico -- no los primeros. Antes se
+    // pedía siempre "los más antiguos" con offset 0, así que en cuanto la
+    // conversación superaba limit mensajes, los mensajes nuevos nunca
+    // volvían a aparecer porque quedaban en una "página" que el frontend
+    // nunca pide (siempre pide página 1).
+    let rows;
+    if (pagina === 1) {
+        rows = await Mensaje.findAll({
+            where: { idConversacion, eliminado: false },
+            order: [['fecha_creacion', 'DESC']],
+            limit
+        });
+        rows.reverse();
+    } else {
+        const offset = (pagina - 1) * limit;
+        rows = await Mensaje.findAll({
+            where: { idConversacion, eliminado: false },
+            order: [['fecha_creacion', 'ASC']],
+            limit,
+            offset
+        });
+    }
 
     return {
         exito: true,
@@ -236,11 +424,6 @@ const listarMensajes = async (idConversacion, idUsuario, filtros = {}) => {
     };
 };
 
-/**
- * Marca como leídos los mensajes de una conversación para un usuario
- * Actualiza la fecha de último visto del participante y marca los mensajes
- * de otros como leídos
- */
 const marcarLeidos = async (idConversacion, idUsuario) => {
     const participa = await esParticipante(idConversacion, idUsuario);
     if (!participa) {
@@ -250,7 +433,6 @@ const marcarLeidos = async (idConversacion, idUsuario) => {
     const transaction = await sequelize.transaction();
 
     try {
-        // Marcar como leídos los mensajes que NO son de este usuario
         await Mensaje.update(
             { leido: true, fechaLectura: new Date() },
             {
@@ -263,7 +445,6 @@ const marcarLeidos = async (idConversacion, idUsuario) => {
             }
         );
 
-        // Actualizar la fecha de último visto del participante
         await ParticipanteConversacion.update(
             { fechaUltimoVisto: new Date() },
             {
@@ -273,6 +454,8 @@ const marcarLeidos = async (idConversacion, idUsuario) => {
         );
 
         await transaction.commit();
+
+        await notificacionService.marcarLeidasPorConversacion(idUsuario, idConversacion);
 
         return { exito: true, mensaje: 'Mensajes marcados como leídos' };
     } catch (error) {

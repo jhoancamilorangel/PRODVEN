@@ -1,33 +1,28 @@
 const Notificacion = require('../../models/Notificacion');
+const { Op } = require('sequelize');
+const { obtenerIO } = require('../../config/socket');
 const logger = require('../../config/logger');
 
 /**
- * Servicio de Notificaciones (parte de base de datos)
- *
- * Maneja las notificaciones dentro de la app:
- *  - Crear notificación (función interna que otros módulos llaman)
- *  - Listar las notificaciones de un usuario
- *  - Marcar como leída(s)
- *  - Contar no leídas
- *
- * El envío push real (Firebase) se hará en la Fase 18 con la app móvil,
- * usando la tabla notificaciones_push. Por ahora, el canal es "sistema"
- * (la notificación que el usuario ve dentro de la aplicación).
+ * Servicio de Notificaciones (parte de base de datos + tiempo real)
  */
+
+/**
+ * Avisa por socket al usuario dueño de la notificación que algo cambió
+ * (nueva, actualizada, o marcada como leída). El frontend, al recibir
+ * esto, refresca el contador/lista de la campana sin esperar polling.
+ */
+const emitirNotificacion = (idUsuario) => {
+    const io = obtenerIO();
+    if (io) {
+        io.to(`usuario:${idUsuario}`).emit('notificacion_actualizada');
+    }
+};
 
 // =====================================================
 // CREAR NOTIFICACIÓN (uso interno)
 // =====================================================
 
-/**
- * Crea una notificación para un usuario.
- *
- * Pensada para ser llamada por otros servicios cuando ocurre un evento
- * (ej: al confirmarse un pedido, al recibir un pago, etc.).
- *
- * @param {object} datos - { idUsuario, idEmpresa, titulo, mensaje, tipo, urlAccion }
- * @returns {Promise<object>} La notificación creada
- */
 const crearNotificacion = async (datos) => {
     try {
         const notificacion = await Notificacion.create({
@@ -42,11 +37,49 @@ const crearNotificacion = async (datos) => {
         });
 
         logger.info(`Notificación creada para usuario ${datos.idUsuario}: ${datos.titulo}`);
+        emitirNotificacion(datos.idUsuario);
 
         return notificacion.datosCompletos();
     } catch (error) {
-        // Una notificación que falla no debe tumbar la operación principal que la origina
         logger.error(`Error al crear notificación: ${error.message}`);
+        return null;
+    }
+};
+
+/**
+ * Crea o actualiza EN EL MISMO LUGAR la notificación de una conversación
+ * (identificada por urlAccion), sin importar si la anterior ya estaba
+ * leída. Así cada conversación tiene siempre una única fila en la
+ * campana, en vez de acumular una por cada mensaje.
+ */
+const crearOActualizarNotificacionMensaje = async (datos) => {
+    try {
+        const existente = await Notificacion.findOne({
+            where: {
+                idUsuario: datos.idUsuario,
+                tipo: 'mensaje',
+                urlAccion: datos.urlAccion
+            }
+        });
+
+        if (existente) {
+            await Notificacion.update(
+                {
+                    titulo: datos.titulo,
+                    mensaje: datos.mensaje,
+                    leida: false,
+                    fecha_envio: new Date()
+                },
+                { where: { idNotificacion: existente.idNotificacion } }
+            );
+            await existente.reload();
+            emitirNotificacion(datos.idUsuario);
+            return existente.datosCompletos();
+        }
+
+        return await crearNotificacion(datos);
+    } catch (error) {
+        logger.error(`Error al crear/actualizar notificación de mensaje: ${error.message}`);
         return null;
     }
 };
@@ -55,13 +88,9 @@ const crearNotificacion = async (datos) => {
 // CONSULTAR
 // =====================================================
 
-/**
- * Lista las notificaciones de un usuario
- */
 const listarNotificaciones = async (idUsuario, filtros = {}) => {
     const where = { idUsuario };
 
-    // Filtro opcional: solo no leídas
     if (filtros.soloNoLeidas === 'true' || filtros.soloNoLeidas === true) {
         where.leida = false;
     }
@@ -88,9 +117,6 @@ const listarNotificaciones = async (idUsuario, filtros = {}) => {
     };
 };
 
-/**
- * Cuenta las notificaciones no leídas de un usuario (para el badge)
- */
 const contarNoLeidas = async (idUsuario) => {
     const total = await Notificacion.count({
         where: { idUsuario, leida: false }
@@ -103,9 +129,6 @@ const contarNoLeidas = async (idUsuario) => {
 // MARCAR LEÍDAS
 // =====================================================
 
-/**
- * Marca una notificación específica como leída
- */
 const marcarLeida = async (idNotificacion, idUsuario) => {
     const notificacion = await Notificacion.findOne({
         where: { idNotificacion, idUsuario }
@@ -117,24 +140,49 @@ const marcarLeida = async (idNotificacion, idUsuario) => {
 
     notificacion.leida = true;
     await notificacion.save();
+    emitirNotificacion(idUsuario);
 
     return { exito: true, mensaje: 'Notificación marcada como leída' };
 };
 
-/**
- * Marca TODAS las notificaciones del usuario como leídas
- */
 const marcarTodasLeidas = async (idUsuario) => {
     const [afectadas] = await Notificacion.update(
         { leida: true },
         { where: { idUsuario, leida: false } }
     );
 
+    emitirNotificacion(idUsuario);
+
     return { exito: true, marcadas: afectadas, mensaje: `${afectadas} notificaciones marcadas como leídas` };
+};
+
+/**
+ * Marca como leídas las notificaciones de tipo 'mensaje' que correspondan
+ * a una conversación específica (identificada dentro de urlAccion).
+ */
+const marcarLeidasPorConversacion = async (idUsuario, idConversacion) => {
+    try {
+        await Notificacion.update(
+            { leida: true },
+            {
+                where: {
+                    idUsuario,
+                    tipo: 'mensaje',
+                    urlAccion: { [Op.like]: `%${idConversacion}` },
+                    leida: false
+                }
+            }
+        );
+        emitirNotificacion(idUsuario);
+    } catch (error) {
+        logger.error(`Error al marcar notificaciones de conversación como leídas: ${error.message}`);
+    }
 };
 
 module.exports = {
     crearNotificacion,
+    crearOActualizarNotificacionMensaje,
+    marcarLeidasPorConversacion,
     listarNotificaciones,
     contarNoLeidas,
     marcarLeida,

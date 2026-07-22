@@ -22,7 +22,7 @@ const ParticipanteConversacion = sequelize.define('ParticipanteConversacion', {
         comment: 'Usuario participante'
     },
     rol: {
-        type: DataTypes.ENUM('admin', 'agente', 'cliente'),
+        type: DataTypes.STRING(50),
         field: 'rol',
         allowNull: false,
         defaultValue: 'cliente',

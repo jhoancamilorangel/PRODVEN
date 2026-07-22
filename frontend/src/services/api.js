@@ -5,26 +5,42 @@ const api = axios.create({
     headers: { 'Content-Type': 'application/json' }
 });
 
-const RUTAS_CLIENTE = ['/marketplace', '/tienda', '/producto', '/carrito', '/checkout', '/cuenta', '/mis-compras', '/mi-perfil', '/mis-pedidos', '/vender'];
+const RUTAS_CLIENTE = ['/marketplace', '/tienda', '/producto', '/carrito', '/checkout', '/cuenta', '/mis-compras', '/mi-perfil', '/mis-pedidos', '/vender', '/soporte'];
 
 const esZonaCliente = () =>
     RUTAS_CLIENTE.some((b) => window.location.pathname === b || window.location.pathname.startsWith(b + '/'));
 
 // Llaves de la zona actual
-const llaves = () => esZonaCliente()
-    ? { token: 'prodven_cli_token', refresh: 'prodven_cli_refresh', usuario: 'prodven_cli_usuario', login: '/cuenta' }
-    : { token: 'prodven_token', refresh: 'prodven_refresh', usuario: 'prodven_usuario', login: '/login' };
+const llaves = () => {
+    const tieneTokenCliente = !!sessionStorage.getItem('prodven_cli_token');
+    
+    if (tieneTokenCliente) {
+        return { 
+            token: 'prodven_cli_token', 
+            refresh: 'prodven_cli_refresh', 
+            usuario: 'prodven_cli_usuario', 
+            login: '/cuenta' 
+        };
+    }
+    
+    return { 
+        token: 'prodven_token', 
+        refresh: 'prodven_refresh', 
+        usuario: 'prodven_usuario', 
+        login: '/login' 
+    };
+};
 
 const cerrarSesion = (l) => {
-    localStorage.removeItem(l.token);
-    localStorage.removeItem(l.refresh);
-    localStorage.removeItem(l.usuario);
+    sessionStorage.removeItem(l.token);
+    sessionStorage.removeItem(l.refresh);
+    sessionStorage.removeItem(l.usuario);
     if (window.location.pathname !== l.login) window.location.href = l.login;
 };
 
 // --- Interceptor de petición: adjunta el token de la zona ---
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem(llaves().token);
+    const token = sessionStorage.getItem(llaves().token);
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
 });
@@ -51,7 +67,7 @@ api.interceptors.response.use(
         }
 
         const l = llaves();
-        const refreshToken = localStorage.getItem(l.refresh);
+        const refreshToken = sessionStorage.getItem(l.refresh);
 
         // Sin refresh token → cerrar sesión
         if (!refreshToken) {
@@ -86,7 +102,7 @@ api.interceptors.response.use(
             const nuevoToken = resp.data?.data?.accessToken;
             if (!nuevoToken) throw new Error('Sin accessToken');
 
-            localStorage.setItem(l.token, nuevoToken);
+            sessionStorage.setItem(l.token, nuevoToken);
             refrescando = false;
             resolverCola(nuevoToken);
 

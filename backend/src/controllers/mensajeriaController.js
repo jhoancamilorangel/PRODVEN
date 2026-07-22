@@ -10,20 +10,23 @@ const resolverEmpresa = (req) => {
 
 /**
  * POST /api/conversaciones
- * Crea una conversación
+ * idEmpresa solo es obligatorio para tipo 'cliente' (chat con una
+ * tienda). Para tipo 'soporte', la conversación no pertenece a
+ * ninguna empresa — cualquier usuario puede abrirla sin tener una.
  */
 const crearConversacion = async (req, res, next) => {
     try {
+        const tipo = req.body.tipo || 'cliente';
         const idEmpresa = resolverEmpresa(req);
 
-        if (!idEmpresa) {
+        if (tipo !== 'soporte' && !idEmpresa) {
             return sendResponse(res, 400, false, 'Debes indicar la empresa (idEmpresa)');
         }
 
         const resultado = await mensajeriaService.crearConversacion(
             idEmpresa,
             {
-                tipo: req.body.tipo,
+                tipo,
                 asunto: req.body.asunto,
                 participantes: req.body.participantes,
                 rolCreador: req.body.rolCreador
@@ -40,17 +43,21 @@ const crearConversacion = async (req, res, next) => {
 
 /**
  * GET /api/conversaciones
- * Lista las conversaciones del usuario autenticado
+ * idEmpresa ya no es obligatorio: sin ella, se listan las conversaciones
+ * del usuario sin filtrar por empresa (necesario para soporte). Se
+ * puede filtrar además por ?tipo=soporte|cliente|interna.
  */
 const listarConversaciones = async (req, res, next) => {
     try {
-        const idEmpresa = resolverEmpresa(req);
+        const tipo = req.query.tipo || null;
+        // El soporte es global por diseño (idEmpresa siempre null en esas
+        // conversaciones). Nunca debe filtrarse por req.tenantId, aunque el
+        // usuario (incluido un superadmin) tenga su propia empresa asociada
+        // — de lo contrario esa empresa se filtra por error sobre tickets
+        // que nunca tuvieron ninguna, devolviendo una lista vacía siempre.
+        const idEmpresa = tipo === 'soporte' ? null : resolverEmpresa(req);
 
-        if (!idEmpresa) {
-            return sendResponse(res, 400, false, 'Debes indicar la empresa (idEmpresa)');
-        }
-
-        const resultado = await mensajeriaService.listarConversacionesUsuario(req.userId, idEmpresa);
+        const resultado = await mensajeriaService.listarConversacionesUsuario(req.userId, { idEmpresa, tipo });
 
         return sendResponse(res, 200, true, 'Conversaciones obtenidas', resultado);
     } catch (error) {
@@ -61,15 +68,11 @@ const listarConversaciones = async (req, res, next) => {
 
 /**
  * GET /api/conversaciones/:idConversacion
- * Obtiene una conversación con sus participantes
+ * idEmpresa ya no es obligatorio (ver mensajeriaService.obtenerConversacion).
  */
 const obtenerConversacion = async (req, res, next) => {
     try {
         const idEmpresa = resolverEmpresa(req);
-
-        if (!idEmpresa) {
-            return sendResponse(res, 400, false, 'Debes indicar la empresa (idEmpresa)');
-        }
 
         const resultado = await mensajeriaService.obtenerConversacion(
             req.params.idConversacion,
@@ -89,10 +92,6 @@ const obtenerConversacion = async (req, res, next) => {
     }
 };
 
-/**
- * POST /api/conversaciones/:idConversacion/mensajes
- * Envía un mensaje en una conversación
- */
 const enviarMensaje = async (req, res, next) => {
     try {
         const resultado = await mensajeriaService.enviarMensaje(
@@ -116,10 +115,6 @@ const enviarMensaje = async (req, res, next) => {
     }
 };
 
-/**
- * GET /api/conversaciones/:idConversacion/mensajes
- * Lista los mensajes de una conversación
- */
 const listarMensajes = async (req, res, next) => {
     try {
         const resultado = await mensajeriaService.listarMensajes(
@@ -139,10 +134,6 @@ const listarMensajes = async (req, res, next) => {
     }
 };
 
-/**
- * PATCH /api/conversaciones/:idConversacion/leer
- * Marca como leídos los mensajes de la conversación
- */
 const marcarLeidos = async (req, res, next) => {
     try {
         const resultado = await mensajeriaService.marcarLeidos(req.params.idConversacion, req.userId);

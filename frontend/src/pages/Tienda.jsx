@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import marketplaceService from '../services/marketplaceService';
 import MarketplaceHeader from '../components/marketplace/MarketplaceHeader';
 import MarketplaceFooter from '../components/marketplace/MarketplaceFooter';
+import BotonChatCliente from '../components/chat/BotonChatCliente';
 import {
     MapPin, Star, ShoppingCart, Search, ArrowLeft,
     Package, Frown, Phone
@@ -172,6 +173,11 @@ function Tienda() {
                     </div>
                 )}
             </main>
+            {/* BOTÓN FLOTANTE DE MENSAJERÍA PARA EL CLIENTE */}
+            <BotonChatCliente 
+                idEmpresa={idEmpresa} 
+                nombreEmpresa={tienda.nombre} 
+            />
 
             <MarketplaceFooter />
         </div>

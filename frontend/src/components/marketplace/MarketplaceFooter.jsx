@@ -26,7 +26,7 @@ function MarketplaceFooter() {
                     <div className="mkt-footer-col">
                         <h4>Ayuda</h4>
                         <a href="/marketplace">Cómo comprar</a>
-                        <a href="/marketplace">Contacto</a>
+                        <a href="/soporte">Contacto</a>
                     </div>
                 </div>
             </div>

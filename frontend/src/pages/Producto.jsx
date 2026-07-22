@@ -25,7 +25,7 @@ function Producto() {
     const [cantidad, setCantidad] = useState(1);
     const [agregando, setAgregando] = useState(false);
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
+    const estaLogueado = () => !!sessionStorage.getItem('prodven_cli_token');
 
     const cargar = useCallback(async () => {
         if (!idProducto) return;

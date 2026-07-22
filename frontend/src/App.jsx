@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import RutaProtegida from './components/RutaProtegida';
@@ -29,14 +30,39 @@ import InventarioInterno from './pages/InventarioInterno';
 import SolicitarNegocio from './pages/SolicitarNegocio';
 import SolicitudesNegocio from './pages/SolicitudesNegocio';
 import GestionEmpresas from './pages/GestionEmpresas';
+import BandejaVendedor from './pages/BandejaVendedor';
+import VistaChatCliente from './pages/VistaChatCliente';
+import VistaSoporteCliente from './pages/VistaSoporteCliente';
+import VistaSoporteVendedor from './pages/VistaSoporteVendedor';
+import BandejaSoporteAdmin from './pages/BandejaSoporteAdmin';
+
+// ==========================================================================
+// COMPONENTE TEMPORAL: VISTA DE CHAT CLIENTE (PLACEHOLDER DE VERIFICACIÓN)
+// ==========================================================================
+
+const ManejarAccesoDenegado = () => {
+    React.useEffect(() => {
+        const manejarAccesoDenegado = (event) => {
+            // Usar alert por ahora, luego puedes cambiarlo por tu sistema de notificaciones
+            alert('🔒 ' + event.detail.mensaje);
+            console.error('Acceso denegado:', event.detail.mensaje);
+        };
+
+        window.addEventListener('acceso-denegado', manejarAccesoDenegado);
+        return () => window.removeEventListener('acceso-denegado', manejarAccesoDenegado);
+    }, []);
+    return null;
+};
+
 
 function App() {
     return (
         <AuthProvider>
             <ErrorBoundary>
+                <ManejarAccesoDenegado/>
                 <BrowserRouter>
                     <Routes>
-                        <Route path="/login" element={<Login />} />
+                        <Route path="/login" element={<Navigate to="/cuenta" replace />} />
 
                         {/* ===== RUTAS PÚBLICAS (marketplace, clientes) ===== */}
                         <Route path="/marketplace" element={<Marketplace />} />
@@ -46,6 +72,13 @@ function App() {
                         <Route path="/carrito" element={<Carrito />} />
                         <Route path="/checkout/:idEmpresa" element={<Checkout />} />
                         <Route path="/mis-compras" element={<MisCompras />} />
+                        
+                        {/* NUEVA RUTA CONECTADA: Captura el ID dinámico de la conversación */}
+                       <Route path="/mis-compras/chat/:idEmpresa/:idConversacion" element={<VistaChatCliente />} />
+                       <Route path="/mis-compras/chat/:idEmpresa/:idConversacion" element={<VistaChatCliente />} />
+                       <Route path="/soporte" element={<VistaSoporteCliente />} />
+                       <Route path="/soporte/:idConversacion" element={<VistaSoporteCliente />} />
+                        
                         <Route path="/mi-perfil" element={<MiPerfil />} />
                         <Route path="/vender" element={<SolicitarNegocio />} />
 
@@ -66,6 +99,14 @@ function App() {
                         <Route path="/mi-tienda" element={<RutaProtegida><Layout><MiTienda /></Layout></RutaProtegida>} />
                         <Route path="/solicitudes" element={<RutaProtegida><Layout><SolicitudesNegocio /></Layout></RutaProtegida>} />
                         <Route path="/empresas" element={<RutaProtegida><Layout><GestionEmpresas /></Layout></RutaProtegida>} />
+                        <Route path="/mensajes" element={<RutaProtegida><Layout><BandejaVendedor /></Layout></RutaProtegida>} />
+                        <Route path="/mensajes" element={<RutaProtegida><Layout><BandejaVendedor /></Layout></RutaProtegida>} />
+                        <Route path="/mensajes/:idConversacion" element={<RutaProtegida><Layout><BandejaVendedor /></Layout></RutaProtegida>} />
+                        <Route path="/soporte-negocio" element={<RutaProtegida><Layout><VistaSoporteVendedor /></Layout></RutaProtegida>} />
+                        <Route path="/soporte-negocio/:idConversacion" element={<RutaProtegida><Layout><VistaSoporteVendedor /></Layout></RutaProtegida>} />
+                        <Route path="/soporte-admin" element={<RutaProtegida><Layout><BandejaSoporteAdmin /></Layout></RutaProtegida>} />
+                        <Route path="/soporte-admin/:idConversacion" element={<RutaProtegida><Layout><BandejaSoporteAdmin /></Layout></RutaProtegida>} />
+                        <Route path="/mensajes/:idConversacion" element={<RutaProtegida><Layout><BandejaVendedor /></Layout></RutaProtegida>} />
 
                         <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>

@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Package, Warehouse, ShoppingCart, Factory,
-    MapPin, CreditCard, Sparkles, BarChart3, ShieldCheck, Settings, Tags, Store, Boxes, Inbox, Building2
+    MapPin, CreditCard, Sparkles, BarChart3, ShieldCheck, Settings, Tags, Store, Boxes, Inbox, Building2, LifeBuoy
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -59,6 +59,12 @@ const SECCIONES = [
             { ruta: '/reportes', etiqueta: 'Reportes', icono: BarChart3 },
             { ruta: '/auditoria', etiqueta: 'Auditoría', icono: ShieldCheck },
             { ruta: '/configuracion', etiqueta: 'Configuración', icono: Settings }
+        ]
+    },
+    {
+        grupo: 'Soporte',
+        items: [
+            { ruta: '/soporte-negocio', etiqueta: 'Soporte ProdVen', icono: LifeBuoy }
         ]
     }
 ];

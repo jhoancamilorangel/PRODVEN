@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import authClienteService from '../services/authClienteService';
 import {
     Store, Mail, Lock, User, Phone, ArrowRight, ArrowLeft,
@@ -11,6 +12,7 @@ import './AuthCliente.css';
 function AuthCliente() {
     const navigate = useNavigate();
     const toast = useToast();
+    const { login: loginInterno } = useAuth();
 
     // modo: 'login' | 'registro' | 'verificar' | 'recuperar' | 'reset'
     const [modo, setModo] = useState('login');
@@ -48,6 +50,12 @@ function AuthCliente() {
     };
 
     // ---- LOGIN ----
+    // Login único para toda la app: según el rol que devuelva el backend,
+    // guarda la sesión en el lugar correcto y navega a la zona
+    // correspondiente. Un cliente entra al marketplace; cualquier rol
+    // interno (administrador, vendedor, superadmin, etc.) entra al panel.
+    const ROLES_INTERNOS = ['superadmin', 'administrador', 'vendedor', 'produccion', 'supervisor', 'domiciliario'];
+
     const hacerLogin = async (e) => {
         e.preventDefault();
         if (!form.correo || !form.password) {
@@ -66,12 +74,35 @@ function AuthCliente() {
                 return;
             }
 
-            localStorage.setItem('prodven_cli_token', data.accessToken);
-            localStorage.setItem('prodven_cli_refresh', data.refreshToken);
-            localStorage.setItem('prodven_cli_usuario', JSON.stringify(data.usuario));
+            const esInterno = ROLES_INTERNOS.includes(data.usuario.rol);
 
-            toast.exito(`¡Bienvenido, ${data.usuario.nombres}!`);
-            setTimeout(() => navigate('/marketplace'), 50);
+            if (esInterno) {
+                // Se usa AuthContext.login (no sessionStorage directo) para
+                // que el contexto quede enterado de inmediato de la sesión
+                // nueva. AuthProvider envuelve toda la app y no se remonta al
+                // navegar entre rutas, así que su useEffect inicial —que lee
+                // sessionStorage— solo corre una vez, al cargar la página.
+                // Escribir sessionStorage a mano desde aquí dejaba a
+                // AuthContext sin enterarse, y por eso Dashboard.jsx (que
+                // depende de useAuth().usuario) se quedaba esperando datos
+                // que nunca llegaban.
+                const resultadoInterno = await loginInterno(form.correo, form.password);
+
+                if (resultadoInterno.exito) {
+                    toast.exito(`¡Hola, ${data.usuario.nombres}!`);
+                    setTimeout(() => navigate('/dashboard'), 50);
+                } else {
+                    toast.error(resultadoInterno.mensaje || 'No se pudo iniciar sesión.');
+                    setCargando(false);
+                }
+            } else {
+                sessionStorage.setItem('prodven_cli_token', data.accessToken);
+                sessionStorage.setItem('prodven_cli_refresh', data.refreshToken);
+                sessionStorage.setItem('prodven_cli_usuario', JSON.stringify(data.usuario));
+
+                toast.exito(`¡Hola, ${data.usuario.nombres}!`);
+                setTimeout(() => navigate('/marketplace'), 50);
+            }
         } catch (error) {
             const msg = error?.response?.data?.message || '';
             if (msg.toLowerCase().includes('verificar tu correo')) {

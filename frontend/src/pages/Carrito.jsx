@@ -19,7 +19,7 @@ function Carrito() {
     const [cargando, setCargando] = useState(true);
     const [actualizando, setActualizando] = useState(null);
 
-    const estaLogueado = () => !!localStorage.getItem('prodven_cli_token');
+    const estaLogueado = () => !!sessionStorage.getItem('prodven_cli_token');
 
     const cargar = useCallback(async () => {
         if (!estaLogueado()) {

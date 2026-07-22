@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import reporteService from '../services/reporteService';
 import {
     DollarSign, Package, Clock, AlertCircle, TrendingUp,
-    ShoppingBag, Trophy, Boxes, ArrowRight
+    ShoppingBag, Trophy, Boxes, ArrowRight,MessageSquare, LifeBuoy
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -122,6 +122,18 @@ function Dashboard() {
                 </div>
                 <div className="dai-flecha"><ArrowRight size={22} /></div>
             </button>
+
+            <button className="dash-acceso-inventario" onClick={() => navigate('/mensajes')}>
+    <div className="dai-fondo"></div>
+    <div className="dai-icono"><MessageSquare size={30} /></div>
+    <div className="dai-texto">
+        <span className="dai-titulo">Bandeja de Mensajes</span>
+        <span className="dai-sub">Responde a tus clientes en tiempo real</span>
+    </div>
+    <div className="dai-flecha"><ArrowRight size={22} /></div>
+</button>
+
+
 
             {/* Dos columnas */}
             <div className="dash-columnas">
