@@ -146,9 +146,11 @@ const BandejaVendedor = () => {
                 return combinado;
             });
 
-            if (esCargaInicial) {
-                mensajeriaService.marcarLeidos(idConversacion).catch(() => {});
-            }
+            // Se marca como leído en CADA actualización, no solo en la carga
+            // inicial: si ya tienes el chat abierto y llega un mensaje nuevo
+            // por poll o socket, no debe quedar contando como "no leído" en
+            // la lista de la izquierda mientras lo estás viendo activamente.
+            mensajeriaService.marcarLeidos(idConversacion).catch(() => {});
         } catch (err) {
             if (!esCargaInicial) mostrarError('Problemas de conexión actualizando el chat.');
         } finally {

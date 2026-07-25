@@ -192,9 +192,14 @@ function Reportes() {
             {/* GRÁFICO DE VENTAS */}
             <div className="rep-panel rep-panel-ancho">
                 <div className="rep-panel-cabecera">
-                    <div>
-                        <h2>Evolución de ventas</h2>
-                        <p>Ingresos a lo largo del tiempo</p>
+                    <div className="rep-panel-titulo-grupo">
+                        <div className="rep-panel-icono" style={{ background: 'linear-gradient(135deg, #27AE60, #1e8449)' }}>
+                            <TrendingUp size={22} />
+                        </div>
+                        <div>
+                            <h2>Evolución de ventas</h2>
+                            <p>Ingresos a lo largo del tiempo</p>
+                        </div>
                     </div>
                 </div>
                 {datosVentas.length === 0 ? (
@@ -226,9 +231,14 @@ function Reportes() {
                 {/* PRODUCTOS MÁS VENDIDOS */}
                 <div className="rep-panel">
                     <div className="rep-panel-cabecera">
-                        <div>
-                            <h2>Productos top</h2>
-                            <p>Los más vendidos</p>
+                        <div className="rep-panel-titulo-grupo">
+                            <div className="rep-panel-icono" style={{ background: 'linear-gradient(135deg, #f39c12, #e67e22)' }}>
+                                <Trophy size={22} />
+                            </div>
+                            <div>
+                                <h2>Productos top</h2>
+                                <p>Los más vendidos</p>
+                            </div>
                         </div>
                     </div>
                     {productos.length === 0 ? (
@@ -263,9 +273,14 @@ function Reportes() {
                 {/* PEDIDOS POR ESTADO */}
                 <div className="rep-panel">
                     <div className="rep-panel-cabecera">
-                        <div>
-                            <h2>Pedidos por estado</h2>
-                            <p>Distribución actual</p>
+                        <div className="rep-panel-titulo-grupo">
+                            <div className="rep-panel-icono" style={{ background: 'linear-gradient(135deg, #8e44ad, #6c3483)' }}>
+                                <ShoppingCart size={22} />
+                            </div>
+                            <div>
+                                <h2>Pedidos por estado</h2>
+                                <p>Distribución actual</p>
+                            </div>
                         </div>
                     </div>
                     {datosEstados.length === 0 ? (
