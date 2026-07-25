@@ -16,7 +16,7 @@ import Engagement from './pages/Engagement';
 import Reportes from './pages/Reportes';
 import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
-import MITienda from './pages/MiTienda';
+import MITienda from './pages/MITienda';
 import Marketplace from './pages/Marketplace';
 import Tienda from './pages/Tienda';
 import AuthCliente from './pages/AuthCliente';
