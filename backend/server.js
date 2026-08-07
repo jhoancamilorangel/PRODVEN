@@ -51,6 +51,7 @@ const auditoriaRoutes = require('./src/routes/auditoriaRoutes');
 const solicitudNegocioRoutes = require('./src/routes/solicitudNegocioRoutes');
 
 const app = express();
+app.set(`trust proxy`, 1);
 
 // =====================================================
 // MIDDLEWARES DE SEGURIDAD Y REGISTRO
