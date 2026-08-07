@@ -19,6 +19,7 @@ const ROLES_INTERNOS = ['superadmin', 'administrador', 'vendedor', 'produccion',
  * Registra un nuevo usuario y envía código de verificación al correo
  */
 const registrar = async (req, res, next) => {
+    let nuevoUsuario = null; // se guarda la referencia aquí para usarla en el catch
     try {
         const { nombres, apellidos, correo, password, telefono, rol } = req.body;
 
@@ -27,7 +28,7 @@ const registrar = async (req, res, next) => {
             return sendResponse(res, 409, false, 'Ya existe un usuario registrado con este correo');
         }
 
-        const nuevoUsuario = await Usuario.create({
+        nuevoUsuario = await Usuario.create({
             nombres,
             apellidos,
             correo,
@@ -39,6 +40,8 @@ const registrar = async (req, res, next) => {
         });
 
         const { codigo } = await twoFactorService.generarCodigoVerificacionCorreo(nuevoUsuario);
+        
+        
         await emailService.enviarCorreoVerificacion(nuevoUsuario.correo, nuevoUsuario.nombres, codigo);
 
         logger.info(`Usuario registrado: ${nuevoUsuario.idUsuario} (${correo})`);
@@ -49,6 +52,17 @@ const registrar = async (req, res, next) => {
         });
     } catch (error) {
         logger.error(`Error en registro: ${error.message}`);
+        
+       
+        if (nuevoUsuario) {
+            try {
+                await nuevoUsuario.destroy(); // Lo elimina de la base de datos (Sequelize)
+                logger.info(`Se eliminó el usuario fantasma (${correo}) porque falló el envío del correo.`);
+            } catch (bdError) {
+                logger.error(`No se pudo limpiar el usuario fantasma de la BD: ${bdError.message}`);
+            }
+        }
+        
         next(error);
     }
 };

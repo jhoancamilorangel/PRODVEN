@@ -1,26 +1,16 @@
-const nodemailer = require('nodemailer');
 const logger = require('../../config/logger');
 
 /**
- * Configuración del transporter de Nodemailer
- */
-const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: parseInt(process.env.EMAIL_PORT, 10),
-    secure: false,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-    }
-});
-
-/**
- * Verifica que la conexión SMTP funcione correctamente al iniciar el servidor
+ * Verifica la conexión simulando una llamada exitosa 
+ * (La API no requiere mantener una conexión abierta como SMTP)
  */
 const verificarConexionEmail = async () => {
     try {
-        await transporter.verify();
-        logger.info('Servicio de correo conectado correctamente');
+        if (!process.env.BREVO_API_KEY) {
+            logger.error('Error al conectar servicio de correo: Falta BREVO_API_KEY en el archivo .env');
+            return false;
+        }
+        logger.info('Servicio de correo (Brevo API) inicializado correctamente');
         return true;
     } catch (error) {
         logger.error(`Error al conectar servicio de correo: ${error.message}`);
@@ -29,21 +19,45 @@ const verificarConexionEmail = async () => {
 };
 
 /**
- * Envía un correo genérico
+ * Envía un correo electrónico haciendo una petición HTTP POST a la API de Brevo
  * @param {object} datos - Destinatario, asunto y contenido HTML
  */
 const enviarCorreo = async ({ para, asunto, html }) => {
+    const url = 'https://api.brevo.com/v3/smtp/email';
+    
+    const datosCorreo = { 
+        sender: { 
+            name: process.env.EMAIL_FROM_NAME || 'ProdVen', 
+            email: process.env.EMAIL_USER 
+        }, 
+        to: [{ email: para }],
+        subject: asunto,
+        htmlContent: html
+    };
+
     try {
-        const info = await transporter.sendMail({
-            from: `"${process.env.EMAIL_FROM_NAME || 'ProdVen'}" <${process.env.EMAIL_USER}>`,
-            to: para,
-            subject: asunto,
-            html
+        // fetch está disponible de forma nativa en Node.js 18 o superior
+        const respuesta = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'accept': 'application/json',
+                'content-type': 'application/json',
+                'api-key': process.env.BREVO_API_KEY
+            },
+            body: JSON.stringify(datosCorreo)
         });
-        logger.info(`Correo enviado a ${para}: ${info.messageId}`);
-        return info;
+
+        if (!respuesta.ok) {
+            const datosError = await respuesta.json();
+            throw new Error(`Respuesta de Brevo: ${JSON.stringify(datosError)}`);
+        }
+
+        const datosExito = await respuesta.json();
+        logger.info(`Correo enviado por API a ${para}: ${datosExito.messageId || 'Éxito'}`);
+        return datosExito;
+
     } catch (error) {
-        logger.error(`Error al enviar correo a ${para}: ${error.message}`);
+        logger.error(`Error al enviar correo por API a ${para}: ${error.message}`);
         throw new Error('No se pudo enviar el correo');
     }
 };
