@@ -35,7 +35,7 @@ const loginLimiter = rateLimit({
  */
 const registroLimiter = rateLimit({
     windowMs: 60 * 60 * 1000,
-    max: 5,
+    max: 20,
     message: {
         success: false,
         message: 'Demasiados intentos de registro desde esta IP. Intenta nuevamente en 1 hora.'
